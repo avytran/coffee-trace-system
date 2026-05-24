@@ -57,7 +57,8 @@ Quay lại Terminal chính (hoặc mở terminal mới), di chuyển vào thư m
 PORT=5000
 DATABASE_URL=postgresql://postgres:<DB_PASSWORD>@localhost:5432/coffee_trace_db?schema=public
 BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545
-BLOCKCHAIN_PRIVATE_KEY=0x... # DÁN_PRIVATE_KEY_(0)_CỦA_HARDHAT_VÀO_ĐÂY
+BLOCKCHAIN_PRIVATE_KEY=0x... # DÁN_PRIVATE_KEY_(0)_CỦA_HARDHAT
+BLOCKCHAIN_CONTRACT_ADDRESS=0x... # DÁN_CONTRACT_ADDRESS
 JWT_SECRET=your_strong_jwt_secret_here
 ```
 
@@ -74,7 +75,10 @@ npx hardhat compile
 npx hardhat run scripts/deploy.js --network localhost
 ```
 
-📝 Lưu ý: Sau khi hoàn tất, Terminal sẽ in ra địa chỉ Contract (ví dụ: `0x5FbDB...`). Hãy lưu lại địa chỉ này để cấu hình cho ứng dụng Client/Frontend.
+📝 Lưu ý: Sau khi hoàn tất, Terminal sẽ in ra địa chỉ Contract (ví dụ: `0x5FbDB...`). Hãy lưu lại địa chỉ này để cấu hình cho ứng dụng Client/Frontend. Bạn cũng có thể chép địa chỉ này vào file cấu hình hoặc ghi chú nội bộ để dùng cho môi trường local.
+
+> Smart contract address example:
+> `0x5FbDB2315678afecb367f032d93F642f64180aa3`
 
 ### Bước 5: Khởi Tạo Database & Seed Dữ Liệu Động
 
