@@ -4,6 +4,12 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract CoffeeTraceability is AccessControl {
+
+    bytes32 public constant FARMER_ROLE = keccak256("FARMER_ROLE");
+    bytes32 public constant COOPERATIVE_ROLE = keccak256("COOPERATIVE_ROLE");
+    bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
+    bytes32 public constant EXPORTER_ROLE = keccak256("EXPORTER_ROLE");
+    bytes32 public constant ROASTERY_ROLE = keccak256("ROASTERY_ROLE");
     
     enum LotStatus { 
         Created,
@@ -70,5 +76,15 @@ contract CoffeeTraceability is AccessControl {
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    function grantAgentRole(bytes32 role, address account) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "Invalid address: cannot grant to zero address");
+        grantRole(role, account);
+    }
+
+    function revokeAgentRole(bytes32 role, address account) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "Invalid address: cannot revoke from zero address");
+        revokeRole(role, account);
     }
 }

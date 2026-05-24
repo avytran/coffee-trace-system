@@ -11,6 +11,9 @@ const config = {
       },
     },
   },
+  paths: {
+    artifacts: "../backend/artifacts", 
+  }
 };
 
 module.exports = config;

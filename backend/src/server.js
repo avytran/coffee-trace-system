@@ -5,11 +5,13 @@ import express from 'express';
 import cors from 'cors';
 import coffeeRoutes from './routes/coffeeRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import adminRoutes from './routes/adminRoutes.js'
 
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { provider } from '../config/blockchain.js';
+import { startContractIndexer } from './indexer/worker.js';
 
 const app = express();
 
@@ -23,6 +25,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/coffee', coffeeRoutes);
 
 app.get('/health', async (req, res) => {
@@ -68,6 +71,8 @@ app.get('/health', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running at: http://localhost:${PORT}`);
   console.log(`Health Check at: http://localhost:${PORT}/health`);
+
+  startContractIndexer();
 });
 
 export default app;
