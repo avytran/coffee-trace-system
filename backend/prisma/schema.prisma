@@ -1,0 +1,76 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  engineType = "library"
+}
+
+model Agent {
+  walletAddress   String           @id @db.VarChar(42)
+  name            String           @db.VarChar(255)
+  role            String           @db.VarChar(30) // ADMIN, FARMER, COOPERATIVE, PROCESSOR, EXPORTER, ROASTERY
+  phone           String?          @db.VarChar(20)
+  email           String?          @db.VarChar(100)
+  physicalAddress String?          @db.Text
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  lotsManaged     CoffeeLot[]      @relation("CurrentActor")
+  lotsFarm        CoffeeLot[]      @relation("Farmer")
+  stageDetails    LotStageDetail[]
+  timelines       LotTimeline[]
+}
+
+model CoffeeLot {
+  lotId         BigInt           @id
+  qrCode        String?          @unique @db.VarChar(100)
+  currentStatus String           @db.VarChar(20) // CREATED, HARVESTED, PROCESSED, REJECTED, ROASTED, EXPORTED, RECEIVED
+  currentActor  String           @db.VarChar(42)
+  farmerAddress String           @db.VarChar(42)
+  initTxHash    String           @db.VarChar(66)
+  createdAt     DateTime         
+  updatedAt     DateTime         @default(now())
+
+  actor         Agent            @relation("CurrentActor", fields: [currentActor], references: [walletAddress])
+  farmer        Agent            @relation("Farmer", fields: [farmerAddress], references: [walletAddress])
+  stageDetails  LotStageDetail[]
+  timelines     LotTimeline[]
+
+  @@index([currentStatus])
+  @@index([currentActor])
+}
+
+model LotStageDetail {
+  id                  Int       @id @default(autoincrement())
+  lotId               BigInt
+  stageName           String    @db.VarChar(20) // FARM, HARVEST, PROCESSING, ROASTING, EXPORT, RECEIPT
+  actorAddress        String    @db.VarChar(42)
+  stageDataPayload    Json      @db.JsonB 
+  ipfsHash            String?   @db.VarChar(100)
+  txHash              String    @db.VarChar(66)
+  blockchainTimestamp DateTime
+
+  lot                 CoffeeLot @relation(fields: [lotId], references: [lotId], onDelete: Cascade)
+  actor               Agent     @relation(fields: [actorAddress], references: [walletAddress])
+
+  @@index([lotId])
+}
+
+model LotTimeline {
+  id                  Int       @id @default(autoincrement())
+  lotId               BigInt
+  status              String    @db.VarChar(20)
+  actorAddress        String    @db.VarChar(42)
+  description         String    @db.Text
+  txHash              String    @db.VarChar(66)
+  blockchainTimestamp DateTime
+
+  lot                 CoffeeLot @relation(fields: [lotId], references: [lotId], onDelete: Cascade)
+  actor               Agent     @relation(fields: [actorAddress], references: [walletAddress])
+
+  @@index([lotId])
+}
