@@ -74,6 +74,36 @@ contract CoffeeTraceability is AccessControl {
     mapping(uint256 => SupplyChainLot) public coffeeLots;
     mapping(string => uint256) public qrToLotId; 
 
+    event LotStatusUpdated(
+        uint256 indexed lotId,
+        LotStatus newStatus,
+        address indexed actor
+    );
+
+    event LotProcessed(
+        uint256 indexed lotId,
+        address indexed actor,
+        string processMethod,
+        uint256 fermentationTime,
+        uint256 moistureContent,
+        uint256 impurityRate,
+        string ipfsReportHash
+    );
+
+    event LotRejected(
+        uint256 indexed lotId,
+        address indexed actor,
+        string reason
+    );
+
+    modifier notRejected(uint256 lotId) {
+        require(
+            coffeeLots[lotId].status != LotStatus.Rejected,
+            "Lo hang da bi dong bang vinh vien"
+        );
+        _;
+    }
+
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -86,5 +116,51 @@ contract CoffeeTraceability is AccessControl {
     function revokeAgentRole(bytes32 role, address account) public onlyRole(DEFAULT_ADMIN_ROLE) {
         require(account != address(0), "Invalid address: cannot revoke from zero address");
         revokeRole(role, account);
+    }
+
+    function verifyAndProcessLot(
+        uint256 lotId,
+        ProcessingData calldata procData
+    ) external onlyRole(COOPERATIVE_ROLE) notRejected(lotId) {
+        SupplyChainLot storage lot = coffeeLots[lotId];
+
+        require(
+            lot.status == LotStatus.Harvested,
+            "Lo hang phai duoc thu hoach truoc"
+        );
+
+        lot.processingDetails = procData;
+        lot.status = LotStatus.Processed;
+        lot.currentActor = msg.sender;
+
+        emit LotStatusUpdated(lotId, LotStatus.Processed, msg.sender);
+
+        emit LotProcessed(
+            lotId,
+            msg.sender,
+            procData.processMethod,
+            procData.fermentationTime,
+            procData.moistureContent,
+            procData.impurityRate,
+            procData.ipfsReportHash
+        );
+    }
+
+    function rejectLot(
+        uint256 lotId,
+        string calldata reason
+    ) external onlyRole(COOPERATIVE_ROLE) notRejected(lotId) {
+        SupplyChainLot storage lot = coffeeLots[lotId];
+
+        require(
+            lot.status == LotStatus.Harvested,
+            "Chi co the huy lo da thu hoach"
+        );
+
+        lot.status = LotStatus.Rejected;
+        lot.currentActor = msg.sender;
+
+        emit LotRejected(lotId, msg.sender, reason);
+        emit LotStatusUpdated(lotId, LotStatus.Rejected, msg.sender);
     }
 }
