@@ -87,4 +87,28 @@ contract CoffeeTraceability is AccessControl {
         require(account != address(0), "Invalid address: cannot revoke from zero address");
         revokeRole(role, account);
     }
+    
+    function updateRoastAndGrade(uint256 lotId, uint256 temperature, uint256 cuppingScore) external onlyRole(PROCESSOR_ROLE) {
+        Lot storage lot = supplyChainLots[lotId];
+        require(lot.status == LotStatus.Processed, "Lô hang chua o trang thai Processed");
+        lot.temperature = temperature;
+        lot.cuppingScore = cuppingScore;
+        lot.status = LotStatus.Roasted;
+    }
+
+    function finalizeExport(uint256 lotId, string calldata _qrCode) external onlyRole(EXPORTER_ROLE) {
+        Lot storage lot = supplyChainLots[lotId];
+        require(lot.status == LotStatus.Roasted, "Chua rang xong");
+        require(qrToLotId[_qrCode] == 0, "QR Code nay da bi trung!");
+        lot.qrCode = _qrCode;
+        lot.status = LotStatus.Exported;
+        qrToLotId[_qrCode] = lotId;
+        emit LotExported(lotId, _qrCode, msg.sender);
+    }
+
+    function confirmReceipt(uint256 lotId) external onlyRole(ROASTERY_ROLE) {
+        Lot storage lot = supplyChainLots[lotId];
+        require(lot.status == LotStatus.Exported, "Hang chua duoc xuat khau");
+        lot.status = LotStatus.Received;
+    }
 }
