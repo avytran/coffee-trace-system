@@ -70,4 +70,22 @@ export function startContractIndexer() {
       console.error("[Indexer Worker Error] Failed to process transaction log sync:", error.message);
     }
   });
+
+    contract.on("LotExported", async (lotId, qrCode, exporter) => {
+        console.log(`[Indexer] Phát hiện lô ${lotId} được xuất khẩu bởi ${exporter}`);
+        
+        try {
+            
+            await prisma.coffeeLot.update({
+                where: { id: Number(lotId) },
+                data: { 
+                    currentStatus: 'EXPORTED',
+                    qrCode: qrCode 
+                }
+            });
+            console.log(`[Indexer] Đã cập nhật thành công lô ${lotId} sang trạng thái EXPORTED`);
+        } catch (error) {
+            console.error(`[Indexer] Lỗi khi cập nhật database cho lô ${lotId}:`, error);
+        }
+    });
 }
