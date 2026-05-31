@@ -4,11 +4,6 @@ import contractABI from './CoffeeTraceability.abi.json' assert { type: 'json' };
 
 let _provider = null;
 let _contract  = null;
-
-/**
- * Lấy Provider (kết nối đến mạng blockchain)
- * Lazy-init: chỉ tạo một lần duy nhất (singleton)
- */
 export const getProvider = () => {
   if (!_provider) {
     _provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
