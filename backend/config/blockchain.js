@@ -1,7 +1,4 @@
 // backend/src/config/blockchain.js
-// Cấu hình ethers.js - dùng chung cho toàn bộ dự án
-// Không hardcode Private Key - đọc từ .env
-
 import { ethers } from 'ethers';
 import contractABI from './CoffeeTraceability.abi.json' assert { type: 'json' };
 
@@ -18,11 +15,6 @@ export const getProvider = () => {
   }
   return _provider;
 };
-
-/**
- * Lấy Contract Instance đã ký bằng Signer của backend
- * Dùng BACKEND_PRIVATE_KEY từ .env để ký giao dịch
- */
 export const getContractInstance = () => {
   if (!_contract) {
     const provider = getProvider();
