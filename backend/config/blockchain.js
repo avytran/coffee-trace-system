@@ -1,22 +1,24 @@
-// src/config/blockchain.js
+// backend/src/config/blockchain.js
 import { ethers } from 'ethers';
-import dotenv from 'dotenv';
+import contractABI from './CoffeeTraceability.abi.json' assert { type: 'json' };
 
-dotenv.config();
-
-let provider;
-let wallet;
-
-try {
-  provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
-  
-  if (process.env.BLOCKCHAIN_PRIVATE_KEY) {
-    wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
+let _provider = null;
+let _contract  = null;
+export const getProvider = () => {
+  if (!_provider) {
+    _provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
   }
-  
-  console.log('🔗 [Blockchain Config]: Khởi tạo cấu hình Provider & Wallet thành công.');
-} catch (error) {
-  console.error('❌ [Blockchain Config Error]: Cấu hình Blockchain thất bại:', error.message);
-}
-
-export { provider, wallet };
+  return _provider;
+};
+export const getContractInstance = () => {
+  if (!_contract) {
+    const provider = getProvider();
+    const signer   = new ethers.Wallet(process.env.BACKEND_PRIVATE_KEY, provider);
+    _contract = new ethers.Contract(
+      process.env.CONTRACT_ADDRESS,
+      contractABI,
+      signer
+    );
+  }
+  return _contract;
+};
