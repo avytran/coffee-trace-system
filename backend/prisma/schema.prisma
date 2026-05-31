@@ -11,8 +11,7 @@ datasource db {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  AGENT (Tài khoản người dùng )
-//  Luồng Khởi tạo - Đăng ký Tài khoản
+//  AGENT 
 // ═══════════════════════════════════════════════════════════════
 model Agent {
   walletAddress   String   @id          
@@ -41,8 +40,7 @@ enum AgentRole {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  COFFEE LOT (Bảng lô hàng chính - Off-chain mirror)
-//  Luồng 1 & Luồng 2 - Doc 1
+//  COFFEE LOT
 // ═══════════════════════════════════════════════════════════════
 model CoffeeLot {
   // --- Fields từ Luồng 1 (CREATE) ---
@@ -63,8 +61,7 @@ model CoffeeLot {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  LOT STAGE DETAIL (Chi tiết từng giai đoạn)
-//  Bảng LotStageDetail - Doc 1
+//  LOT STAGE DETAIL 
 // ═══════════════════════════════════════════════════════════════
 model LotStageDetail {
   id                 Int      @id @default(autoincrement())
@@ -75,15 +72,13 @@ model LotStageDetail {
   blockchainTimestamp DateTime? 
   createdAt          DateTime @default(now())
 
-  // Relations
   lot CoffeeLot @relation(fields: [lotId], references: [lotId])
 
   @@map("lot_stage_details")
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  LOT TIMELINE (Lịch sử trạng thái - Append-only)
-//  Bảng LotTimeline
+//  LOT TIMELINE
 // ═══════════════════════════════════════════════════════════════
 model LotTimeline {
   id          Int      @id @default(autoincrement())
@@ -93,7 +88,6 @@ model LotTimeline {
   txHash      String?
   createdAt   DateTime @default(now())
 
-  // Relations
   lot CoffeeLot @relation(fields: [lotId], references: [lotId])
 
   @@map("lot_timelines")
