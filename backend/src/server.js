@@ -5,7 +5,11 @@ import express from 'express';
 import cors from 'cors';
 import coffeeRoutes from './routes/coffeeRoutes.js';
 import authRoutes from './routes/authRoutes.js';
-import adminRoutes from './routes/adminRoutes.js'
+import adminRoutes from './routes/adminRoutes.js';
+
+
+import publicRoutes from './routes/publicRoutes.js';
+import './indexer/resiliencyCron.js'; 
 
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -15,7 +19,7 @@ import { startContractIndexer } from './indexer/worker.js';
 
 const app = express();
 
-const prisma = new PrismaClient({
+export const prisma = new PrismaClient({
   adapter: new PrismaPg(process.env.DATABASE_URL),
 });
 
@@ -24,9 +28,13 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Đăng ký các Route hệ thống
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/coffee', coffeeRoutes);
+
+
+app.use('/api/public', publicRoutes);
 
 app.get('/health', async (req, res) => {
   const healthStatus = {
@@ -71,6 +79,7 @@ app.get('/health', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running at: http://localhost:${PORT}`);
   console.log(`Health Check at: http://localhost:${PORT}/health`);
+
 
   startContractIndexer();
 });

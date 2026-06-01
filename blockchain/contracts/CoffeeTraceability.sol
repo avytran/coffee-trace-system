@@ -87,4 +87,9 @@ contract CoffeeTraceability is AccessControl {
         require(account != address(0), "Invalid address: cannot revoke from zero address");
         revokeRole(role, account);
     }
+
+    function getCoffeeLot(uint256 _lotId) external view returns (SupplyChainLot memory) {
+        require(coffeeLots[_lotId].farmerAddress != address(0), "Loi: Lo hang nay khong ton tai tren Blockchain!");
+        return coffeeLots[_lotId];
+    }
 }
