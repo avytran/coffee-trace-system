@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node src/index.js",
+    "dev": "nodemon src/index.js",
     "test:health": "node test-health.js"
   },
   "keywords": [],
@@ -24,6 +24,7 @@
     "pg": "^8.21.0"
   },
   "devDependencies": {
+    "nodemon": "^3.1.14",
     "prisma": "^7.8.0"
   }
 }
