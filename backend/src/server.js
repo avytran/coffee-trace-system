@@ -3,12 +3,11 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import coffeeRoutes from './routes/coffeeRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import farmerRoutes from './routes/farmerRoutes.js';
-import batchRoutes from './routes/batchRoute.js';
-import userRoutes from './routes/userRoute.js';
+import batchRoutes from './routes/batchRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import cooperativeRoutes from './routes/cooperativeRoutes.js';
 import processorRoutes from './routes/processorRoutes.js';
 import exporterRoutes from './routes/exporterRoutes.js';
@@ -54,7 +53,6 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/coffee', coffeeRoutes);
 app.use('/api/farmer', farmerRoutes);
 app.use('/api/batch', batchRoutes);
 app.use('/api/users', userRoutes);
