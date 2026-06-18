@@ -1,33 +1,69 @@
 const hre = require("hardhat");
 
 async function main() {
-  console.log("Starting deployment process for CoffeeTraceability contract...");
+  console.log("🚀 Bắt đầu quy trình Deploy hệ thống 3 Smart Contracts...");
 
   const [deployer] = await hre.ethers.getSigners();
-  console.log(`Deploying contracts with the account: ${deployer.address}`);
+  console.log(`Đang sử dụng tài khoản Deployer: ${deployer.address}`);
   
   const balance = await deployer.provider.getBalance(deployer.address);
-  console.log(`Account balance: ${hre.ethers.formatEther(balance)} ETH`);
-  console.log("--------------------------------------------------");
+  console.log(`Số dư tài khoản: ${hre.ethers.formatEther(balance)} ETH`);
+  console.log("----------------------------------------------------------------");
 
-  const CoffeeTraceability = await hre.ethers.getContractFactory("CoffeeTraceability");
+  // =================================================================
+  // BƯỚC 1: Deploy UserRegistry.sol
+  // =================================================================
+  console.log("1️⃣  Đang gửi giao dịch deploy UserRegistry...");
+  const UserRegistry = await hre.ethers.getContractFactory("UserRegistry");
+  const userRegistryContract = await UserRegistry.deploy();
+  await userRegistryContract.waitForDeployment();
   
-  console.log("Sending deployment transaction to the network...");
-  const coffeeContract = await CoffeeTraceability.deploy();
+  const userRegistryAddress = await userRegistryContract.getAddress();
+  console.log(`👉 UserRegistry deployed thành công tại: ${userRegistryAddress}`);
+  console.log("----------------------------------------------------------------");
 
-  await coffeeContract.waitForDeployment();
 
-  const contractAddress = await coffeeContract.getAddress();
+  // =================================================================
+  // BƯỚC 2: Deploy BatchRegistry.sol (Truyền địa chỉ UserRegistry vào constructor)
+  // =================================================================
+  console.log("2️⃣  Đang gửi giao dịch deploy BatchRegistry...");
+  const BatchRegistry = await hre.ethers.getContractFactory("BatchRegistry");
+  
+  // 🌟 ĐÚNG THEO CONSTRUCTOR: constructor(address _userRegistry)
+  const batchRegistryContract = await BatchRegistry.deploy(userRegistryAddress); 
+  await batchRegistryContract.waitForDeployment();
+  
+  const batchRegistryAddress = await batchRegistryContract.getAddress();
+  console.log(`👉 BatchRegistry deployed thành công tại: ${batchRegistryAddress}`);
+  console.log("----------------------------------------------------------------");
 
-  console.log("--------------------------------------------------");
-  console.log("CONTRACT DEPLOYED SUCCESSFULLY!");
-  console.log(`Contract Address: ${contractAddress}`);
-  console.log("Copy this address to configure your backend/frontend blockchain config file.");
+
+  // =================================================================
+  // BƯỚC 3: Deploy BatchEventRegistry.sol (Truyền địa chỉ BatchRegistry vào constructor)
+  // =================================================================
+  console.log("3️⃣  Đang gửi giao dịch deploy BatchEventRegistry...");
+  const BatchEventRegistry = await hre.ethers.getContractFactory("BatchEventRegistry");
+  
+  // 🌟 ĐÚNG THEO CONSTRUCTOR: constructor(address _batchRegistry)
+  const batchEventRegistryContract = await BatchEventRegistry.deploy(batchRegistryAddress);
+  await batchEventRegistryContract.waitForDeployment();
+  
+  const batchEventRegistryAddress = await batchEventRegistryContract.getAddress();
+  console.log(`👉 BatchEventRegistry deployed thành công tại: ${batchEventRegistryAddress}`);
+
+
+  // =================================================================
+  // TỔNG KẾT & CẤU HÌNH CHO BACKEND
+  // =================================================================
+  console.log("----------------------------------------------------------------");
+  console.log("🎉 TẤT CẢ SMART CONTRACTS ĐÃ ĐƯỢC DEPLOY THÀNH CÔNG!");
+  console.log("Hãy sao chép các địa chỉ sau vào file cấu hình (.env hoặc config.js) của Backend:");
+  console.log(`{\n  USER_REGISTRY_ADDRESS: "${userRegistryAddress}",\n  BATCH_REGISTRY_ADDRESS: "${batchRegistryAddress}",\n  EVENT_REGISTRY_ADDRESS: "${batchEventRegistryAddress}"\n}`);
 }
 
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error("Deployment encountered an error:", error);
+    console.error("❌ Quá trình deploy gặp lỗi nghiêm trọng:", error);
     process.exit(1);
   });

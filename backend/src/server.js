@@ -5,7 +5,15 @@ import express from 'express';
 import cors from 'cors';
 import coffeeRoutes from './routes/coffeeRoutes.js';
 import authRoutes from './routes/authRoutes.js';
-import adminRoutes from './routes/adminRoutes.js'
+import adminRoutes from './routes/adminRoutes.js';
+import farmerRoutes from './routes/farmerRoutes.js';
+import batchRoutes from './routes/batchRoute.js';
+import userRoutes from './routes/userRoute.js';
+import cooperativeRoutes from './routes/cooperativeRoutes.js';
+import processorRoutes from './routes/processorRoutes.js';
+import exporterRoutes from './routes/exporterRoutes.js';
+import receiverRoutes from './routes/receiverRoutes.js';
+import publicRoutes from './routes/publicRoutes.js';
 
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -21,12 +29,40 @@ const prisma = new PrismaClient({
 
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. server-to-server, curl)
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS policy: Origin ${origin} not allowed`));
+  },
+  credentials: true
+}));
+
+app.use((req, res, next) => {
+  console.log('[REQUEST]', req.method, req.originalUrl, '- content-type:', req.headers['content-type']);
+  next();
+});
+
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/coffee', coffeeRoutes);
+app.use('/api/farmer', farmerRoutes);
+app.use('/api/batch', batchRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/cooperative', cooperativeRoutes);
+app.use('/api/processor', processorRoutes);
+app.use('/api/exporter', exporterRoutes);
+app.use('/api/receiver', receiverRoutes);
+app.use('/api/public', publicRoutes);
 
 app.get('/health', async (req, res) => {
   const healthStatus = {

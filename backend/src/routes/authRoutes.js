@@ -1,13 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
 import { ethers } from 'ethers';
-import jwt from 'jsonwebtoken';
-import { getNonce, getProfile, login } from '../controllers/authController.js';
+import { verifyWalletAndGetRole } from '../controllers/authController.js';
 
 const router = express.Router();
 
-router.get('/nonce/:walletAddress', getNonce);
-router.post('/login', login);
-router.get('/profile/:walletAddress', getProfile);
+router.post('/verify-wallet', verifyWalletAndGetRole);
 
 export default router;
