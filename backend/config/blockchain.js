@@ -16,7 +16,7 @@ try {
       chainId: 31337
     },
     { 
-      disableFilterId: true 
+      staticNetwork: true
     }
   );
 
@@ -26,7 +26,7 @@ try {
     wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
   }
   
-  console.log('🔗 [Blockchain Config]: Khởi tạo cấu hình Provider (với disableFilterId) & Wallet thành công.');
+  console.log('🔗 [Blockchain Config]: Khởi tạo cấu hình Provider (staticNetwork) & Wallet thành công.');
 } catch (error) {
   console.error('❌ [Blockchain Config Error]: Cấu hình Blockchain thất bại:', error.message);
 }

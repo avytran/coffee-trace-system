@@ -162,7 +162,7 @@ export const saveTransferImporterToDb = async (req, res) => {
                 where: { id: batchId },
                 data: {
                     status: status || "EXPORTED", 
-                    owner_id: targetReceiver.id
+                    current_owner: targetReceiver.id
                 }
             });
 
