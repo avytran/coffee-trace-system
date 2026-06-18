@@ -1,137 +1,90 @@
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-
 import { ethers } from 'ethers';
 import jwt from 'jsonwebtoken';
+import { prisma } from "../utils/prisma.js";
 
-const prisma = new PrismaClient({
-  adapter: new PrismaPg(process.env.DATABASE_URL),
-});
-
-const nonceMap = new Map();
-
-export const getNonce = async (req, res) => {
+/**
+ * POST /api/auth/verify-wallet
+ * API xác thực người dùng dựa trên Chữ ký số MetaMask & Cấp JWT Token
+ */
+export const verifyWalletAndGetRole = async (req, res) => {
   try {
-    const walletAddress = req.params.walletAddress.toLowerCase();
+    const { wallet_address, signature, message } = req.body;
 
-    let agent = await prisma.agent.findUnique({
-      where: { walletAddress }
-    });
-
-    if (!agent) {
-      agent = await prisma.agent.create({
-        data: {
-          walletAddress,
-          role: "PENDING_SYNC",
-          name: `Web3 User ${walletAddress.substring(0, 6)}`,
-          isActive: true
-        }
+    // 🌟 Kiểm tra nghiêm ngặt dữ liệu đầu vào theo chuẩn chữ ký số
+    if (!wallet_address || !signature || !message) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Yêu cầu không hợp lệ. Thiếu địa chỉ ví, chữ ký số hoặc thông điệp gốc." 
       });
     }
 
-    if (!agent.isActive) {
-      return res.status(403).json({
-        error: "Forbidden",
-        message: "Your account has been deactivated."
+    // 🌟 BƯỚC MẤY CHỐT: Khôi phục địa chỉ ví thực tế từ chữ ký (Signature Verification)
+    // ethers.verifyMessage sẽ giải mã signature + message để tìm ra Public Key (Ví) đã ký nó
+    const recoveredAddress = ethers.verifyMessage(message, signature);
+    
+    if (recoveredAddress.toLowerCase() !== wallet_address.toLowerCase()) {
+      return res.status(401).json({ 
+        success: false,
+        isAuthenticated: false,
+        message: "Xác thực chữ ký số thất bại! Phát hiện hành vi giả mạo gói tin dữ liệu." 
       });
     }
 
-    const nonce = `Welcome to Coffee Trace! Please sign this message to verify your wallet ownership.\nSecurity Nonce Code: ${Math.floor(Math.random() * 1000000)}`;
-
-    nonceMap.set(walletAddress, nonce);
-
-    return res.json({ nonce });
-  } catch (error) {
-    console.error("Get Nonce Error:", error);
-    return res.status(500).json({
-      error: "Internal Server Error",
-      message: error.message
-    });
-  }
-}
-
-export const login = async (req, res) => {
-  try {
-    const { walletAddress, signature } = req.body;
-    const addressLower = walletAddress.toLowerCase();
-
-    const savedNonce = nonceMap.get(addressLower);
-
-    if (!savedNonce) {
-      return res.status(400).json({
-        error: "Authentication process failed.",
-        message: "Nonce expired or not found. Please request a new nonce first."
-      });
-    }
-
-    const recoveredAddress = ethers.verifyMessage(savedNonce, signature);
-
-    if (recoveredAddress.toLowerCase() !== addressLower) {
-      return res.status(401).json({
-        error: "Authentication process failed.",
-        message: "Invalid signature. Wallet ownership verification failed."
-      });
-    }
-
-    nonceMap.delete(addressLower);
-
-    const agent = await prisma.agent.findUnique({
-      where: { walletAddress: addressLower }
-    });
-
-    const userRole = agent && agent.role ? agent.role : "PENDING_SYNC";
-    const userId = agent && agent.id ? agent.id : 0;
-
-    const token = jwt.sign(
-      {
-        id: userId,
-        walletAddress: addressLower,
-        role: userRole
+    // Tìm kiếm thông tin người dùng trong PostgreSQL qua Prisma
+    const user = await prisma.users.findUnique({
+      where: { 
+        wallet_address: wallet_address.toLowerCase() 
       },
-      process.env.JWT_SECRET || "SUPER_SECRET_KEY",
-      { expiresIn: "24h" }
+    });
+
+    // Trường hợp 1: Ví chưa được Admin đăng ký trong hệ thống
+    if (!user) {
+      return res.status(200).json({
+        isAuthenticated: false,
+        role: "ANONYMOUS",
+        status: "UNREGISTERED",
+        message: "Địa chỉ ví này chưa được đăng ký trong hệ thống cung ứng."
+      });
+    }
+
+    // Trường hợp 2: Tài khoản bị khóa (Thu hồi quyền)
+    if (user.status === "SUSPENDED") {
+      return res.status(403).json({
+        isAuthenticated: false,
+        role: user.role,
+        status: user.status,
+        message: "Tài khoản của bạn đang bị tạm ngưng hoạt động bởi Admin."
+      });
+    }
+
+    // 🌟 BƯỚC TẠO JWT: Ký mã hóa thông tin User thành một chuỗi Token (Hạn dùng 1 ngày)
+    // 'MY_SUPER_SECRET_KEY_2026' là khóa bí mật, bạn nên ném vào file .env (JWT_SECRET)
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        wallet_address: user.wallet_address, 
+        role: user.role 
+      },
+      process.env.JWT_SECRET || 'MY_SUPER_SECRET_KEY_2026',
+      { expiresIn: '1d' }
     );
 
+    // Trường hợp 3: Hợp lệ -> Trả về thông tin, vai trò VÀ CHUỖI TOKEN JWT
     return res.status(200).json({
-      message: "Login successful",
-      token,
+      success: true,
+      isAuthenticated: true,
+      token: token, // 🌟 Frontend sẽ nhận chuỗi này và lưu vào localStorage
       user: {
-        walletAddress: addressLower,
-        role: userRole
+        id: user.id,
+        name: user.name,
+        wallet_address: user.wallet_address,
+        role: user.role, 
+        status: user.status
       }
     });
 
   } catch (error) {
-    console.error("Login Error:", error);
-    return res.status(500).json({
-      error: "Authentication process failed.",
-      message: error.message
-    });
-  }
-};
-
-export const getProfile = async (req, res) => {
-  try {
-    const { walletAddress } = req.params;
-
-    const agent = await prisma.agent.findUnique({
-      where: { walletAddress: walletAddress.toLowerCase() }
-    });
-
-    if (!agent) {
-      return res.json({ 
-        success: true, 
-        data: {
-          walletAddress,
-          role: "PENDING_SYNC", 
-          name: `Web3 User ${walletAddress.substring(0, 6)}`,
-          isActive: true
-        } 
-      });
-    }
-
-    return res.json({ success: true, data: agent });
-  } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    console.error("❌ Lỗi xác thực chữ ký ví:", error);
+    return res.status(500).json({ success: false, message: "Lỗi hệ thống khi xác thực chữ ký." });
   }
 };
