@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ethers } from 'ethers';
 import pg from 'pg'; 
+import { provider } from '../config/blockchain.js';
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -12,7 +13,6 @@ const RPC_URL = process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545";
 async function main() {
   console.log('Connecting to Blockchain Node to fetch active accounts...');
   
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
   let accounts = [];
   
   try {
@@ -22,72 +22,36 @@ async function main() {
     process.exit(1);
   }
 
-  if (accounts.length < 4) {
-    console.error("Local Blockchain node does not provide enough accounts (minimum 4 required) for role assignment!");
+  if (accounts.length < 1) {
+    console.error("Local Blockchain node does not provide any accounts! Minimum 1 required for ADMIN seeding.");
     process.exit(1);
   }
 
-  console.log('Initiating database seeding for Agent table (Synchronized with Blockchain wallets)...');
+  console.log('Initiating database seeding for ADMIN user (Synchronized with Blockchain wallet)...');
 
-  const initialAgents = [
-    {
-      walletAddress: accounts[0].address.toLowerCase(),
+  const adminWallet = accounts[0].address.toLowerCase();
+
+  const savedAdmin = await prisma.users.upsert({
+    where: { wallet_address: adminWallet }, 
+    update: { 
+      name: 'Ban Quản Trị Hệ Thống', 
+      role: 'ADMIN'
+    },
+    create: {
+      wallet_address: adminWallet,
       name: 'Ban Quản Trị Hệ Thống',
       role: 'ADMIN',
-      email: 'admin@coffeetrace.com',
-      phone: '0123456789',
-      physicalAddress: 'Văn phòng Điều hành Trung tâm, TP. HCM',
+      status: 'ACTIVE'
     },
-    {
-      walletAddress: accounts[1].address.toLowerCase(),
-      name: 'Nông hộ Y Miên',
-      role: 'FARMER',
-      email: 'ymien.farm@gmail.com',
-      phone: '0987654321',
-      physicalAddress: 'Buôn Ma Thuột, Đắk Lắk',
-    },
-    {
-      walletAddress: accounts[2].address.toLowerCase(),
-      name: 'Hợp Tác Xã Cà Phê Chơ Cư Mgar',
-      role: 'COOPERATIVE',
-      email: 'cumgar.coop@gmail.com',
-      phone: '0905111222',
-      physicalAddress: 'Huyện Cư M\'gar, Đắk Lắk',
-    },
-    {
-      walletAddress: accounts[3].address.toLowerCase(),
-      name: 'Nhà Máy Chế Biến Cà Phê An Thái',
-      role: 'PROCESSOR',
-      email: 'anthai.processor@anthai.com.vn',
-      phone: '02623955111',
-      physicalAddress: 'KCN Hòa Phú, Buôn Ma Thuột',
-    }
-  ];
+  });
 
-  for (const agent of initialAgents) {
-    const savedAgent = await prisma.agent.upsert({
-      where: { walletAddress: agent.walletAddress }, 
-      update: { 
-        name: agent.name, 
-        role: agent.role,
-        email: agent.email,
-        phone: agent.phone,
-        physicalAddress: agent.physicalAddress
-      },
-      create: {
-        walletAddress: agent.walletAddress,
-        name: agent.name,
-        role: agent.role,
-        email: agent.email,
-        phone: agent.phone,
-        physicalAddress: agent.physicalAddress,
-        isActive: true
-      },
-    });
-    console.log(`Successfully seeded Agent: ${savedAgent.name} | Wallet: ${savedAgent.walletAddress} -> Role: ${savedAgent.role}`);
-  }
+  console.log(`----------------------------------------------------------------------`);
+  console.log(`🚀 Successfully seeded ADMIN: ${savedAdmin.name}`);
+  console.log(`🔑 Wallet Address: ${savedAdmin.wallet_address}`);
+  console.log(`💡 Other roles (FARMER, COOPERATIVE, etc.) will be assigned by this ADMIN.`);
+  console.log(`----------------------------------------------------------------------`);
 
-  console.log('Agent database seeding completed successfully!');
+  console.log('Database seeding completed successfully!');
 }
 
 main()

@@ -3,74 +3,202 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
-  engineType = "library"
+  engineType      = "library"
 }
 
-model Agent {
-  walletAddress   String           @id @db.VarChar(42)
-  name            String           @db.VarChar(255)
-  role            String           @db.VarChar(30) // ADMIN, FARMER, COOPERATIVE, PROCESSOR, EXPORTER, ROASTERY
-  phone           String?          @db.VarChar(20)
-  email           String?          @db.VarChar(100)
-  physicalAddress String?          @db.Text
-  isActive        Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  
-  lotsManaged     CoffeeLot[]      @relation("CurrentActor")
-  lotsFarm        CoffeeLot[]      @relation("Farmer")
-  stageDetails    LotStageDetail[]
-  timelines       LotTimeline[]
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum document_type_enum {
+  DOCUMENT
+  CERTIFICATE
 }
 
-model CoffeeLot {
-  lotId         BigInt           @id
-  qrCode        String?          @unique @db.VarChar(100)
-  currentStatus String           @db.VarChar(20) // CREATED, HARVESTED, PROCESSED, REJECTED, ROASTED, EXPORTED, RECEIVED
-  currentActor  String           @db.VarChar(42)
-  farmerAddress String           @db.VarChar(42)
-  initTxHash    String           @db.VarChar(66)
-  createdAt     DateTime         
-  updatedAt     DateTime         @default(now())
-
-  actor         Agent            @relation("CurrentActor", fields: [currentActor], references: [walletAddress])
-  farmer        Agent            @relation("Farmer", fields: [farmerAddress], references: [walletAddress])
-  stageDetails  LotStageDetail[]
-  timelines     LotTimeline[]
-
-  @@index([currentStatus])
-  @@index([currentActor])
+enum quality_grade_enum {
+  S
+  A
+  B
+  C
+  D
 }
 
-model LotStageDetail {
-  id                  Int       @id @default(autoincrement())
-  lotId               BigInt
-  stageName           String    @db.VarChar(20) // FARM, HARVEST, PROCESSING, ROASTING, EXPORT, RECEIPT
-  actorAddress        String    @db.VarChar(42)
-  stageDataPayload    Json      @db.JsonB 
-  ipfsHash            String?   @db.VarChar(100)
-  txHash              String    @db.VarChar(66)
-  blockchainTimestamp DateTime
-
-  lot                 CoffeeLot @relation(fields: [lotId], references: [lotId], onDelete: Cascade)
-  actor               Agent     @relation(fields: [actorAddress], references: [walletAddress])
-
-  @@index([lotId])
+enum status_enum {
+  INITIAL
+  HARVESTED
+  PRE_PROCESSED
+  REJECTED
+  PROCESSED
+  ASSESSED
+  EXPORTED
+  COMPLETED
 }
 
-model LotTimeline {
-  id                  Int       @id @default(autoincrement())
-  lotId               BigInt
-  status              String    @db.VarChar(20)
-  actorAddress        String    @db.VarChar(42)
-  description         String    @db.Text
-  txHash              String    @db.VarChar(66)
-  blockchainTimestamp DateTime
+enum role_enum {
+  ADMIN
+  FARMER
+  COOPERATIVE
+  PROCESSOR
+  EXPORTER
+  RECEIVER
+  ANONYMOUS
+}
 
-  lot                 CoffeeLot @relation(fields: [lotId], references: [lotId], onDelete: Cascade)
-  actor               Agent     @relation(fields: [actorAddress], references: [walletAddress])
+enum user_status_enum {
+  ACTIVE
+  SUSPENDED
+}
 
-  @@index([lotId])
+enum action_enum {
+  ASSIGN_ROLE
+  CREATE_BATCH
+  HARVEST
+  PRE_PROCESS
+  REJECT
+  PROCESS
+  ASSESS
+  EXPORT
+  VERIFY
+  TRANSFER
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model users {
+  id             String           @id @default(uuid()) @db.Uuid
+  name           String
+  wallet_address String           @unique
+  role           role_enum
+  status         user_status_enum
+  created_at     DateTime         @default(now()) @db.Timestamp
+
+  // Relations
+  cafe_batches          cafe_batches[]
+  audit_logs            audit_logs[]
+  batch_events          batch_events[]
+  farmer_engagements    actor_engagement[] @relation("FarmerRelation")
+  coop_engagements      actor_engagement[] @relation("CoopRelation")
+  processor_engagements actor_engagement[] @relation("ProcessorRelation")
+  exporter_engagements  actor_engagement[] @relation("ExporterRelation")
+  receiver_engagements  actor_engagement[] @relation("RoasteryRelation")
+}
+
+model cafe_batches {
+  id                String       @id @default(uuid()) @db.Uuid
+  longitude         Float
+  latitude          Float
+  altitude          Float
+  weight            Float     @default(0)
+  plant_variety     String
+  cultivation_bio   String
+  status            status_enum
+  current_owner     String       @db.Uuid
+  traceability_node String
+  created_at        DateTime     @default(now()) @db.Timestamp
+  updated_at        DateTime     @updatedAt @db.Timestamp
+
+  // Relations
+  owner             users              @relation(fields: [current_owner], references: [id])
+  documents         documents[]
+  audit_logs        audit_logs[]
+  cafe_batch_details cafe_batch_details?
+  shipping_info     shipping_info[]
+  actor_engagements actor_engagement[]
+  batch_events      batch_events[]
+} 
+
+model documents {
+  id           String             @id @default(uuid()) @db.Uuid // Khóa chính mới bằng UUID
+  ipfs_cid     String             @unique                       // Giữ tính độc nhất của file IPFS
+  batch_id     String             @db.Uuid
+  batch_status status_enum
+  description  String
+  uploaded_by  String
+  type         document_type_enum
+
+  // Relations
+  cafe_batch   cafe_batches       @relation(fields: [batch_id], references: [id])
+}
+
+model audit_logs {
+  id           String      @id @default(uuid()) @db.Uuid
+  time         DateTime    @default(now()) @db.Timestamp
+  action       action_enum
+  description  String
+  performed_by String      @db.Uuid
+  batch_id     String      @db.Uuid
+  batch_status status_enum
+
+  // Relations
+  user         users        @relation(fields: [performed_by], references: [id])
+  cafe_batch   cafe_batches @relation(fields: [batch_id], references: [id])
+}
+
+model cafe_batch_details {
+  batch_id             String             @id @db.Uuid
+  harvest_time         DateTime           @db.Timestamp
+  harvest_method       String
+  processing_method    String
+  fermentation_duration Int
+  moisture_content     Int
+  defect_count         Int
+  defect_reason        String
+  roasting_temperature Int
+  roasting_duration    Int
+  roast_batch_size     Int
+  sensory_score        Float
+  quality_grade        quality_grade_enum
+
+  // Relations
+  cafe_batch           cafe_batches       @relation(fields: [batch_id], references: [id])
+}
+
+model shipping_info {
+  id               String       @id @default(uuid()) @db.Uuid // Khóa chính mới bằng UUID
+  ipfs_cid         String       @unique                       // Giữ tính độc nhất của metadata vận chuyển
+  batch_id         String       @db.Uuid
+  carrier          String
+  departure_date   DateTime     @db.Timestamp
+  destination      String
+  container_number String
+
+  // Relations
+  cafe_batch       cafe_batches @relation(fields: [batch_id], references: [id])
+}
+
+model actor_engagement {
+  id           String      @id @default(uuid()) @db.Uuid
+  batch_id     String      @db.Uuid
+  farmer_id    String?     @db.Uuid
+  coop_id      String?     @db.Uuid
+  processor_id String?     @db.Uuid
+  exporter_id  String?     @db.Uuid
+  receiver_id  String?     @db.Uuid
+  batch_status status_enum
+
+  // Relations
+  cafe_batch   cafe_batches @relation(fields: [batch_id], references: [id])
+  farmer       users?       @relation("FarmerRelation", fields: [farmer_id], references: [id])
+  coop         users?       @relation("CoopRelation", fields: [coop_id], references: [id])
+  processor    users?       @relation("ProcessorRelation", fields: [processor_id], references: [id])
+  exporter     users?       @relation("ExporterRelation", fields: [exporter_id], references: [id])
+  receiver     users?       @relation("RoasteryRelation", fields: [receiver_id], references: [id])
+} 
+
+model batch_events {
+  id           String      @id @default(uuid()) @db.Uuid
+  batch_id     String      @db.Uuid
+  event_type   action_enum
+  performed_by String      @db.Uuid
+  ipfs_cid     String
+  event_data   Json        @db.JsonB
+  created_at   DateTime    @default(now()) @db.Timestamp
+
+  // Relations
+  cafe_batch   cafe_batches @relation(fields: [batch_id], references: [id])
+  user         users        @relation(fields: [performed_by], references: [id])
 }
