@@ -2,6 +2,7 @@
 import { ethers } from "ethers";
 import axios from "axios";
 import dotenv from "dotenv";
+import { provider } from "../config/blockchain";
 
 dotenv.config();
 
@@ -14,8 +15,6 @@ const ABI = ["function grantAgentRole(bytes32 role, address account) public"];
 
 async function runTest() {
   console.log("🎬 KHỞI ĐỘNG TIẾN TRÌNH TEST LIÊN THÔNG VÀO HỆ THỐNG...");
-  
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
   
   // 1. Tạo một ví mới tinh (0 ETH, chưa có trong DB, chưa có trên mạng)
   const newWallet = ethers.Wallet.createRandom(provider);

@@ -1,10 +1,10 @@
 import express from 'express';
-import { getBatches, getBatchDetail } from '../controllers/batchController.js';
-import { verifyToken } from '../middlewares/verifyToken.js';
+
+import { getPublicLotTraceability, getPublicDashboardStats } from '../controllers/publicController.js';
 
 const router = express.Router();
 
-router.get('/my-batches', verifyToken, getBatches);
-router.get('/:id', verifyToken, getBatchDetail);
+router.get('/lots/:lotId', getPublicLotTraceability);
+router.get("/dashboard", getPublicDashboardStats);
 
 export default router;

@@ -1,34 +1,23 @@
-import { uploadBufferToIPFS } from "../utils/ipfsUtil.js";
+import jwt from 'jsonwebtoken';
 
-export const autoIpfsUpload = async (req, res, next) => {
+export const verifyToken = (req, res, next) => {
+  // Lấy chuỗi token từ header "Authorization: Bearer <token>"
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: "Truy cập bị từ chối! Thiếu mã xác thực JWT." });
+  }
+
   try {
-    const userWallet = (req.user?.wallet_address || req.body.wallet_address || "").toLowerCase();
+    // Giải mã chuỗi token bằng Secret Key
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'MY_SUPER_SECRET_KEY_2026');
     
-    if (!userWallet) {
-      return res.status(400).json({ success: false, message: "Thiếu địa chỉ ví để thực hiện định danh IPFS!" });
-    }
-
-    const docDesc = req.body.document_desc || "";
-    const fileNameSeed = req.body.traceability_code || "BatchFile";
-
-    console.log("[Middleware IPFS] Đang tự động xử lý tệp minh chứng...");
-
-    const finalIpfsCid = await uploadBufferToIPFS(
-      req.file?.buffer,
-      req.file?.originalname || fileNameSeed,
-      userWallet,
-      docDesc
-    );
-
-    req.body.computedIpfsCid = finalIpfsCid;
-
-    console.log(`[Middleware IPFS] Xử lý xong. CID cấp cho Controller: ${finalIpfsCid}`);
-    next();
+    // Găm dữ liệu giải mã được (gồm id, wallet_address, role) thẳng vào object `req.user`
+    req.user = decoded; 
+    
+    next(); // Hợp lệ thì cho đi tiếp sang Controller
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Lỗi nghẽn luồng xử lý IPFS tại hệ thống trung gian.",
-      error: error.message
-    });
+    return res.status(403).json({ success: false, message: "Mã xác thực JWT đã hết hạn hoặc không hợp lệ!" });
   }
 };
