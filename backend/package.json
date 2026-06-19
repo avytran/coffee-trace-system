@@ -5,6 +5,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
+    "vercel-build": "prisma generate",
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "test:health": "node test-health.js"
