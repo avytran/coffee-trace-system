@@ -26,7 +26,7 @@ const PORT = process.env.PORT || 5000;
 const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
-  'https://coffee-trace-frontend.vercel.app'
+  'https://coffee-trace-frontend-ashen.vercel.app'
 ];
 
 app.use(cors({
