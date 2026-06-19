@@ -18,7 +18,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { provider } from '../config/blockchain.js';
-import { startContractIndexer } from './indexer/worker.js';
+// import { startContractIndexer } from './indexer/worker.js';
 
 const app = express();
 
@@ -106,7 +106,7 @@ app.listen(PORT, () => {
   console.log(`Server is running at: http://localhost:${PORT}`);
   console.log(`Health Check at: http://localhost:${PORT}/health`);
 
-  startContractIndexer();
+  // startContractIndexer();
 });
 
 export default app;

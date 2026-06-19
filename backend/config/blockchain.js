@@ -4,31 +4,47 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 let provider;
-let wallet;
+let wallet = null;
+let contracts = {};
+const environment = process.env.NODE_ENV || 'local';
 
 try {
-  const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || 'http://127.0.0.1:8545';
+  let rpcUrl;
 
-  provider = new ethers.JsonRpcProvider(
-    rpcUrl,
-    {
-      name: 'hardhat',
-      chainId: 31337
-    },
-    { 
-      staticNetwork: true
-    }
-  );
-
-  provider.pollingInterval = 4000; 
-  
-  if (process.env.BLOCKCHAIN_PRIVATE_KEY) {
-    wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
+  if (environment === 'sepolia') {
+    console.log('[Server Web3]: Đang chạy môi trường DEV (Sepolia - Alchemy)');
+    rpcUrl = process.env.SEPOLIA_BLOCKCHAIN_RPC;
+    
+    contracts = {
+      userRegistry: process.env.SEPOLIA_USER_REGISTRY,
+      batchRegistry: process.env.SEPOLIA_BATCH_REGISTRY,
+      eventRegistry: process.env.SEPOLIA_EVENT_REGISTRY
+    };
+  } else {
+    console.log('[Server Web3]: Đang chạy môi trường LOCAL (Hardhat Node)');
+    rpcUrl = process.env.LOCAL_BLOCKCHAIN_RPC || 'http://127.0.0.1:8545';
+    
+    contracts = {
+      userRegistry: process.env.LOCAL_USER_REGISTRY,
+      batchRegistry: process.env.LOCAL_BATCH_REGISTRY,
+      eventRegistry: process.env.LOCAL_EVENT_REGISTRY
+    };
   }
-  
-  console.log('🔗 [Blockchain Config]: Khởi tạo cấu hình Provider (staticNetwork) & Wallet thành công.');
+
+  provider = new ethers.JsonRpcProvider(rpcUrl);
+  provider.pollingInterval = 4000;
+
+  if (environment === 'sepolia' && process.env.SEPOLIA_PRIVATE_KEY) {
+    const privateKey = process.env.SEPOLIA_PRIVATE_KEY;
+    const cleanKey = privateKey.startsWith('0x') ? privateKey : '0x' + privateKey;
+    wallet = new ethers.Wallet(cleanKey, provider);
+    console.log(`[Server Web3]: Đã đồng bộ Ví Quản Trị Hệ Thống: ${wallet.address}`);
+  }
+
+  console.log('[Server Web3]: Khởi tạo Provider kết nối Blockchain thành công.');
 } catch (error) {
-  console.error('❌ [Blockchain Config Error]: Cấu hình Blockchain thất bại:', error.message);
+  console.error('[Server Web3 Error]: Lỗi thiết lập kết nối:', error.message);
 }
 
-export { provider, wallet };
+// 💡 EXPORT THÊM BIẾN wallet RA NGOÀI ĐỂ CÁC FILE KHÁC (NHƯ SEED.JS) SỬ DỤNG
+export { provider, wallet, contracts, environment };
