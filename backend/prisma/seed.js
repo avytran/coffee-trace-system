@@ -1,5 +1,9 @@
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
+import pkgClient from '@prisma/client';
+const { PrismaClient } = pkgClient;
+
+import pkgAdapter from '@prisma/adapter-pg';
+const { PrismaPg } = pkgAdapter;
+
 import { ethers } from 'ethers';
 import pg from 'pg'; 
 import { provider, wallet, environment } from '../config/blockchain.js';

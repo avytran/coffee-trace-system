@@ -13,7 +13,7 @@ try {
 
   if (environment === 'sepolia') {
     console.log('[Server Web3]: Đang chạy môi trường DEV (Sepolia - Alchemy)');
-    rpcUrl = process.env.SEPOLIA_BLOCKCHAIN_RPC;
+    rpcUrl = process.env.SEPOLIA_RPC_URL;
     
     contracts = {
       userRegistry: process.env.SEPOLIA_USER_REGISTRY,
@@ -30,7 +30,6 @@ try {
       eventRegistry: process.env.LOCAL_EVENT_REGISTRY
     };
   }
-
   provider = new ethers.JsonRpcProvider(rpcUrl);
   provider.pollingInterval = 4000;
 
@@ -46,5 +45,4 @@ try {
   console.error('[Server Web3 Error]: Lỗi thiết lập kết nối:', error.message);
 }
 
-// 💡 EXPORT THÊM BIẾN wallet RA NGOÀI ĐỂ CÁC FILE KHÁC (NHƯ SEED.JS) SỬ DỤNG
 export { provider, wallet, contracts, environment };

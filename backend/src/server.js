@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { provider } from '../config/blockchain.js';
+
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes.js';
@@ -14,23 +16,17 @@ import exporterRoutes from './routes/exporterRoutes.js';
 import receiverRoutes from './routes/receiverRoutes.js';
 import publicRoutes from './routes/publicRoutes.js';
 
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-
-import { provider } from '../config/blockchain.js';
+import { prisma } from './utils/prisma.js';
 // import { startContractIndexer } from './indexer/worker.js';
 
 const app = express();
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg(process.env.DATABASE_URL),
-});
 
 const PORT = process.env.PORT || 5000;
 
 const allowedOrigins = [
   'http://localhost:3000',
-  'http://127.0.0.1:3000'
+  'http://127.0.0.1:3000',
+  'https://coffee-trace-frontend.vercel.app'
 ];
 
 app.use(cors({
