@@ -40,7 +40,6 @@ export const shipmentBatchIpfs = async (req, res) => {
  */
 export const saveShipmentToDb = async (req, res) => {
     try {
-        // Hỗ trợ bóc tách linh hoạt cả 2 kiểu viết camelCase và snake_case từ Frontend
         const batchId = req.body.batchId || req.body.batch_id;
         const ipfsCid = req.body.ipfsCid || req.body.ipfs_cid;
         const txHash = req.body.txHash || req.body.tx_hash;
@@ -58,19 +57,38 @@ export const saveShipmentToDb = async (req, res) => {
         }
 
         const result = await prisma.$transaction(async (tx) => {
-            // 1. Tạo mới bản ghi vận chuyển trong bảng shipping_info tách biệt
+            // 1. Cập nhật trạng thái lô hàng sang EXPORTED
+            const updatedBatch = await tx.cafe_batches.update({
+                where: { id: batchId },
+                data: {
+                    status: "EXPORTED"
+                }
+            });
+
+            // 2. Cập nhật trạng thái chặng tham gia của Exporter trong bảng actor_engagement
+            await tx.actor_engagement.updateMany({
+                where: { 
+                    batch_id: batchId,
+                    exporter_id: req.user.id
+                },
+                data: {
+                    batch_status: "EXPORTED"
+                }
+            });
+
+            // 3. Tạo mới bản ghi vận chuyển trong bảng shipping_info tách biệt
             const shippingLog = await tx.shipping_info.create({
                 data: {
                     batch_id: batchId,
                     ipfs_cid: ipfsCid,
-                    carrier: carrier,
+                    carrier: carrier || "Unknown Carrier",
                     departure_date: departureDate ? new Date(departureDate) : new Date(),
-                    destination: destination,
-                    container_number: containerNumber
+                    destination: destination || "Unknown Destination",
+                    container_number: containerNumber || "N/A"
                 }
             });
 
-            // 2. Ghi nhận nhật ký sự kiện chuỗi cung ứng vào bảng `batch_events`
+            // 4. Ghi nhận nhật ký sự kiện chuỗi cung ứng vào bảng `batch_events`
             const eventLog = await tx.batch_events.create({
                 data: {
                     batch_id: batchId,
@@ -86,7 +104,7 @@ export const saveShipmentToDb = async (req, res) => {
                 }
             });
 
-            return { shippingLog, eventLog };
+            return { updatedBatch, shippingLog, eventLog };
         });
 
         return res.status(200).json({
@@ -148,16 +166,16 @@ export const saveTransferImporterToDb = async (req, res) => {
 
         const result = await prisma.$transaction(async (tx) => {
 
-            // 1. Xác thực xem Nhà nhập khẩu đích có tồn tại hay không
+            // 1. Xác thực xem Nhà nhập khẩu đích (đối tác nhận bàn giao) có tồn tại hay không
             const targetReceiver = await tx.users.findUnique({
                 where: { id: exporterId }
             });
 
             if (!targetReceiver) {
-                throw new Error("Không tìm thấy Nhà nhập khẩu đối tác tiếp nhận trong DB!");
+                throw new Error("Không tìm thấy đối tác tiếp nhận (Receiver/Importer) trong hệ thống!");
             }
 
-            // 2. Cập nhật trạng thái và đổi đứt chủ sở hữu tài sản (owner_id) tại bảng gốc cafe_batches
+            // 2. Cập nhật trạng thái và đổi đứt chủ sở hữu tài sản (current_owner) tại bảng gốc cafe_batches
             const updatedBatch = await tx.cafe_batches.update({
                 where: { id: batchId },
                 data: {
@@ -166,18 +184,27 @@ export const saveTransferImporterToDb = async (req, res) => {
                 }
             });
 
-            // 3. Cập nhật chặng cũ của Exporter (gán receiver_id) để đóng chặng cũ
+            // 3. Cập nhật chặng cũ của Exporter bằng việc gán `receiver_id` để kết thúc vòng đời chặng
             await tx.actor_engagement.updateMany({
                 where: { 
                     batch_id: batchId,
-                    actor_id: req.user.id // Chỉ cập nhật đúng chặng của Exporter hiện tại gửi đi
+                    exporter_id: req.user.id
                 },
                 data: {
-                    receiver_id: targetReceiver.id
+                    receiver_id: targetReceiver.id,
+                    batch_status: status || "EXPORTED"
                 }
             });
 
-            // 4. Ghi nhận lịch sử sự kiện bàn giao tài sản vào bảng `batch_events`
+            // 4. Lấy thông tin engagement hiện tại để trả về phản hồi đồng bộ (thay thế cho biến lỗi newEngagement cũ)
+            const currentEngagement = await tx.actor_engagement.findFirst({
+                where: {
+                    batch_id: batchId,
+                    exporter_id: req.user.id
+                }
+            });
+
+            // 5. Ghi nhận lịch sử sự kiện bàn giao tài sản vào bảng `batch_events`
             const eventLog = await tx.batch_events.create({
                 data: {
                     batch_id: batchId,
@@ -193,7 +220,7 @@ export const saveTransferImporterToDb = async (req, res) => {
                 }
             });
 
-            return { updatedBatch, newEngagement, eventLog };
+            return { updatedBatch, currentEngagement, eventLog };
         });
 
         return res.status(200).json({
