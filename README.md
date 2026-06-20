@@ -1,18 +1,17 @@
-# Setup Guide — dApp-Coffee-Trace
+# ⚙️ CoffeeTrace Backend & Smart Contracts - Node.js Express Application
 
-Minimal, copyable setup instructions for local development.
+CoffeeTrace Backend là hạt nhân xử lý logic dịch vụ, API và quản lý trạng thái của hệ thống truy xuất nguồn gốc chuỗi cung ứng cà phê Robusta Đắk Lắk. Dự án kết hợp sức mạnh của **Hợp đồng thông minh (Smart Contracts)** chạy trên môi trường EVM Blockchain để đảm bảo tính minh bạch, bất biến của dòng đời hạt cà phê, cùng cơ sở dữ liệu **PostgreSQL** để tăng tốc khả năng truy vấn, lưu trữ dữ liệu off-chain nặng.
 
----
+Hệ thống sử dụng **Prisma ORM** để quản lý cơ sở dữ liệu và áp dụng kiến trúc Event-Driven (Indexer) lắng nghe các sự kiện on-chain tự động đồng bộ hóa ngược về cơ sở dữ liệu off-chain, tối ưu hóa tối đa hiệu năng trải nghiệm người dùng cuối.
 
-## Prerequisites
+## 🛠 Kiến Trúc Công Nghệ
 
-- Node.js 22.x
-- Docker Desktop
-- Git
+- **Smart Contract & Node:** Solidity, Hardhat, Ethers.js
+- **Backend API Server:** Node.js, Express.js
+- **Database ORM:** PostgreSQL, Prisma ORM
+- **Phân tán tệp nặng:** IPFS (InterPlanetary File System) via Pinata
 
----
-
-## 🏃‍♂️ Quy Trình Khởi Chạy Hệ Thống (Thứ Tự Bắt Buộc)
+## 🏃‍♂️ Quy Trình Khởi Chạy Hệ Thống
 
 Để cơ chế **Seed dữ liệu Agent động** hoạt động chính xác (Backend tự kết nối lên Blockchain lấy danh sách ví thực tế để map quyền vào Postgres), bạn **bắt buộc** phải khởi chạy mạng Blockchain trước khi chạy lệnh Seed và Backend.
 
@@ -45,24 +44,16 @@ Ngay sau khi lệnh `npx hardhat node` hoàn tất, Terminal của bạn sẽ hi
 - Tìm mục `Started HTTP and JSON-RPC server at http://127.0.0.1:8545/`.
 - Bên dưới sẽ có danh sách các tài khoản.
 - `Account #0` được dùng làm `ADMIN` (ví mặc định: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`).
-- `Account #1` được dùng làm `FARMER` (ví mặc định: `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`).
 - Tìm dòng `Private Key (0)` để lấy secret key của `Account #0`.
 - Copy chuỗi hex bắt đầu bằng `0x...`.
 
 ### Bước 3: Cấu Hình Biến Môi Trường Backend (`.env`)
 
-Quay lại Terminal chính (hoặc mở terminal mới), di chuyển vào thư mục `backend`, tạo file `.env` và dán chuỗi private key bạn vừa copy vào:
+Quay lại Terminal chính (hoặc mở terminal mới), di chuyển vào thư mục `backend` và `blockchain` , mỗi phần tạo file `.env` dựa theo `.env.example` và dán chuỗi private key bạn vừa copy vào:
 
 ```env
-PORT=5000
-DATABASE_URL=postgresql://postgres:<DB_PASSWORD>@localhost:5432/coffee_trace_db?schema=public
-BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545
-BLOCKCHAIN_PRIVATE_KEY=0x... # DÁN_PRIVATE_KEY_(0)_CỦA_HARDHAT
-BLOCKCHAIN_CONTRACT_ADDRESS=0x... # DÁN_CONTRACT_ADDRESS
-JWT_SECRET=your_strong_jwt_secret_here
+BLOCKCHAIN_PRIVATE_KEY=<your_key>
 ```
-
-> Lưu ý: Không bao giờ commit file `.env` này lên GitHub.
 
 ### Bước 4: Deploy Smart Contract lên Local Network
 
@@ -92,16 +83,6 @@ npx prisma db seed
 
 > Yêu cầu: `prisma.config.ts` đã map `seed` tới `node ./prisma/seed.js`.
 
-Log mong đợi khi Seed thành công:
-
-```text
-🔄 Đang kết nối tới Blockchain Node để nạp danh sách tài khoản thực tế...
-🌱 Bắt đầu gieo dữ liệu cho bảng Agent (Đồng bộ theo danh sách ví Blockchain)...
-✅ Seed thành công Agent: Ban Quản Trị Hệ Thống | Ví: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266 -> Quyền: ADMIN
-✅ Seed thành công Agent: Nông hộ Y Miên | Ví: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8 -> Quyền: FARMER
-🌿 Quá trình gieo dữ liệu Agent hoàn tất!
-```
-
 ### Bước 6: Khởi Động Express Backend Server
 
 ```bash
@@ -116,33 +97,16 @@ cd backend
 node src/index.js
 ```
 
----
-
 ## 🔍 Quick Verification (Kiểm Tra Nhanh)
 
 ```bash
 curl http://localhost:5000/health
 ```
 
-*Kỳ vọng nhận về JSON phản hồi có trạng thái* `status: "OK"` *và* `postgresql: "UP"`.
-
-Kiểm tra luồng xác thực ví Web3 tự động:
-
-```bash
-cd backend
-node test-login.js
-```
-
-(Script giả lập MetaMask ký mã số Nonce ngẫu nhiên từ server, thực hiện login bằng Account #1 và nhận JWT Token phân vai `FARMER`).
-
----
-
-## ⚠️ Security Notes
-
-- Tuyệt đối không đưa private key thật của ví chính (Mainnet) vào file `.env` phát triển.
-- Sử dụng cấu hình quản lý bí mật như KMS cho `BLOCKCHAIN_PRIVATE_KEY` và `JWT_SECRET` khi triển khai production.
-- Trong môi trường phân tán đa máy chủ, lưu nonce vào Redis thay vì dùng `nonceMap` trong Node.js để tránh lệch session.
-
----
-
-Last updated: 2026-05-24
+## Nhóm sinh viên thực hiện
+Nhóm E:
+1.  Nguyễn Mạc Gia Huy	    MSSV: 31231025016
+2.	Nguyễn Nguyên Khuyến 	MSSV: 31231026626
+3.	Nguyễn Thị Thiên Nhi	MSSV: 31231023551
+4.	Lê Vũ Uyên Phương	    MSSV: 31231025809
+5.	Trần Anh Vy			    MSSV: 31231020502
