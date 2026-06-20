@@ -20,6 +20,17 @@ try {
       batchRegistry: process.env.SEPOLIA_BATCH_REGISTRY,
       eventRegistry: process.env.SEPOLIA_EVENT_REGISTRY
     };
+
+    const primaryProvider = new ethers.JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
+    const backupProvider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com", undefined, { staticNetwork: true });
+
+    provider = new ethers.FallbackProvider([
+      { provider: primaryProvider, priority: 1, weight: 2 },
+      { provider: backupProvider, priority: 2, weight: 1 }
+    ]);
+
+    provider.pollingInterval = 15000; 
+
   } else {
     console.log('[Server Web3]: Đang chạy môi trường LOCAL (Hardhat Node)');
     rpcUrl = process.env.LOCAL_BLOCKCHAIN_RPC || 'http://127.0.0.1:8545';
@@ -29,9 +40,10 @@ try {
       batchRegistry: process.env.LOCAL_BATCH_REGISTRY,
       eventRegistry: process.env.LOCAL_EVENT_REGISTRY
     };
+
+    provider = new ethers.JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
+    provider.pollingInterval = 1000;
   }
-  provider = new ethers.JsonRpcProvider(rpcUrl);
-  provider.pollingInterval = 4000;
 
   if (environment === 'sepolia' && process.env.SEPOLIA_PRIVATE_KEY) {
     const privateKey = process.env.SEPOLIA_PRIVATE_KEY;
