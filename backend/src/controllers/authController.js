@@ -88,3 +88,48 @@ export const verifyWalletAndGetRole = async (req, res) => {
     return res.status(500).json({ success: false, message: "Lỗi hệ thống khi xác thực chữ ký." });
   }
 };
+
+/**
+ * GET /api/auth/profile
+ * API lấy thông tin Profile dựa trên JWT Token (Dùng để khôi phục phiên)
+ */
+export const getUserProfile = async (req, res) => {
+  try {
+    // 1. req.user sẽ do authMiddleware (ở bước sau) giải mã JWT và gắn vào
+    const decodedUser = req.user; 
+
+    if (!decodedUser) {
+      return res.status(401).json({ success: false, message: "Không tìm thấy thông tin xác thực." });
+    }
+
+    // 2. Tìm lại trong DB thông qua Prisma để đảm bảo dữ liệu mới nhất (hoặc check xem có bị khóa đột xuất không)
+    const user = await prisma.users.findUnique({
+      where: { id: decodedUser.id },
+    });
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Tài khoản không tồn tại trên hệ thống." });
+    }
+
+    if (user.status === "SUSPENDED") {
+      return res.status(403).json({ success: false, message: "Tài khoản này đã bị Admin khóa." });
+    }
+
+    // 3. Trả về cấu trúc DATA chính xác mà hàm checkExistingAuth ở Frontend đang đợi:
+    // Frontend đợi: const data = response.data; -> setRole(data.user.role);
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        wallet_address: user.wallet_address,
+        role: user.role,
+        status: user.status
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Lỗi khi lấy thông tin Profile:", error);
+    return res.status(500).json({ success: false, message: "Lỗi hệ thống khi lấy thông tin profile." });
+  }
+};

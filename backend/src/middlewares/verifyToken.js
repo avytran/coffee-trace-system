@@ -18,6 +18,6 @@ export const verifyToken = (req, res, next) => {
     
     next(); // Hợp lệ thì cho đi tiếp sang Controller
   } catch (error) {
-    return res.status(403).json({ success: false, message: "Mã xác thực JWT đã hết hạn hoặc không hợp lệ!" });
+    return res.status(401).json({ success: false, message: "Mã xác thực JWT đã hết hạn hoặc không hợp lệ!" });
   }
 };
