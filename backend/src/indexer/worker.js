@@ -3,14 +3,12 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-// 🔥 Đồng bộ import từ các module cấu hình dùng chung của hệ thống
 import { prisma } from "../utils/prisma.js";
 import { provider } from "../../config/blockchain.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// ── NẠP ABI CỦA CẢ 3 SMART CONTRACTS ────────────────────────────────────────
 const getAbi = (contractName) => {
   const path = `${__dirname}/../../artifacts/contracts/${contractName}.sol/${contractName}.json`;
   return JSON.parse(fs.readFileSync(path, 'utf-8')).abi;
@@ -20,25 +18,19 @@ const userRegistryAbi = getAbi("UserRegistry");
 const batchRegistryAbi = getAbi("BatchRegistry");
 const batchEventRegistryAbi = getAbi("BatchEventRegistry");
 
-// Map ENUM dữ liệu quyền từ On-chain sang DB (Khớp chuẩn với role_enum trong schema)
 const ROLE_MAP = { 0: "ADMIN", 1: "FARMER", 2: "COOPERATIVE", 3: "PROCESSOR", 4: "EXPORTER", 5: "RECEIVER", 6: "ANONYMOUS" };
-// Map ENUM trạng thái lô hàng từ On-chain sang DB (Khớp chuẩn với status_enum trong schema)
 const STATUS_MAP = { 0: "INITIAL", 1: "HARVESTED", 2: "PRE_PROCESSED", 3: "REJECTED", 4: "PROCESSED", 5: "ASSESSED", 6: "EXPORTED", 7: "COMPLETED" };
-// Map ENUM loại hành động sự kiện (Khớp chuẩn với action_enum trong schema)
 const ACTION_MAP = { 0: "ASSIGN_ROLE", 1: "CREATE_BATCH", 2: "HARVEST", 3: "PRE_PROCESS", 4: "REJECT", 5: "PROCESS", 6: "ASSESS", 7: "EXPORT", 8: "VERIFY", 9: "TRANSFER" };
 
 export function startContractIndexer() {
-  // Sử dụng provider tập trung được import từ file cấu hình hệ thống
   const adminWallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
 
-  // Khởi tạo 3 thực thể Contract lắng nghe chuyên biệt
   const userContract = new ethers.Contract(process.env.USER_REGISTRY_ADDRESS, userRegistryAbi, provider);
   const batchContract = new ethers.Contract(process.env.BATCH_REGISTRY_ADDRESS, batchRegistryAbi, provider);
   const eventContract = new ethers.Contract(process.env.EVENT_REGISTRY_ADDRESS, batchEventRegistryAbi, provider);
 
   console.log("🚀 [Indexer Cluster] Khởi chạy thành công toàn bộ luồng lắng nghe 3 Contracts...");
 
-  // Hàm Faucet Gas tự động khi phát hiện tác nhân thao tác trên chuỗi có số dư thấp
   async function autoFundGas(walletAddress) {
     try {
       const cleanWallet = walletAddress.toLowerCase();
@@ -54,7 +46,6 @@ export function startContractIndexer() {
     }
   }
 
-  // Helper tìm hoặc sinh tự động User dựa trên Ví để lấy ID (UUID) đồng bộ khóa ngoại
   async function ensureUserExists(walletAddress, defaultRole = "ANONYMOUS") {
     const cleanWallet = walletAddress.toLowerCase();
     let user = await prisma.users.findUnique({ where: { wallet_address: cleanWallet } });
@@ -72,9 +63,6 @@ export function startContractIndexer() {
     return user;
   }
 
-  // ===========================================================================
-  // 1️⃣ CỤM LẮNG NGHE: USER_REGISTRY CONTRACT EVENTS
-  // ===========================================================================
   userContract.on("UserRegistered", async (wallet, role, status, createdAt) => {
     try {
       if (!prisma || !prisma.users) {
@@ -117,12 +105,8 @@ export function startContractIndexer() {
   });
 
 
-  // ===========================================================================
-  // 2️⃣ CỤM LẮNG NGHE: BATCH_REGISTRY CONTRACT EVENTS
-  // ===========================================================================
   batchContract.on("BatchCreated", async (batchId, traceabilityCode, currentOwner) => {
     try {
-      // Vì current_owner trong schema là UUID tham chiếu bảng users, ta cần tìm ID của User này trước
       const user = await ensureUserExists(currentOwner, "FARMER");
       
       await prisma.cafe_batches.upsert({
@@ -185,7 +169,6 @@ export function startContractIndexer() {
   batchContract.on("BatchOwnershipTransferred", async (batchId, from, to) => {
     try {
       const receiverWallet = to.toLowerCase();
-      // Lấy UUID của tài khoản nhận quyền sở hữu mới
       const user = await ensureUserExists(receiverWallet);
 
       await prisma.cafe_batches.update({
@@ -200,25 +183,20 @@ export function startContractIndexer() {
   });
 
 
-  // ===========================================================================
-  // 3️⃣ CỤM LẮNG NGHE: BATCH_EVENT_REGISTRY CONTRACT EVENTS (Audit Sổ Cái)
-  // ===========================================================================
   eventContract.on("BatchEventAdded", async (batchId, action, actor, ipfsCid) => {
     try {
       const dbAction = ACTION_MAP[Number(action)];
       const actorWallet = actor.toLowerCase();
 
-      // Truy vấn theo cấu trúc cột chuẩn của schema mới (wallet_address và id)
       const user = await prisma.users.findUnique({ where: { wallet_address: actorWallet } });
       const currentBatch = await prisma.cafe_batches.findUnique({ where: { id: batchId } });
 
       if (currentBatch && user) {
-        // Ghi song song vào bảng audit_logs & batch_events theo quan hệ schema của bạn
         await prisma.audit_logs.create({
           data: {
             batch_id: batchId,
             action: dbAction,
-            performed_by: user.id, // Lưu UUID người thực hiện
+            performed_by: user.id,
             description: `Hành động ${dbAction} được ký thực thi từ ví ${actorWallet}`,
             batch_status: currentBatch.status
           }

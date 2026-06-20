@@ -3,13 +3,6 @@ import crypto from 'crypto';
 import { ethers } from "ethers";
 import { provider } from "../../config/blockchain.js";
 
-// =========================================================================
-// 🔥 LUỒNG 1: THIẾT LẬP THÔNG SỐ MỀ RANG & PHÂN HẠNG CẢM QUAN (ROAST / ASSESS)
-// =========================================================================
-
-/**
- * [Luồng 1] Bước 1: Tiếp nhận thông số kỹ thuật lò rang, đóng gói IPFS Payload
- */
 export const roastBatchIpfs = async (req, res) => {
     try {
         const {
@@ -20,14 +13,13 @@ export const roastBatchIpfs = async (req, res) => {
             moisture,
             cupping_score,
             document_desc,
-            computedIpfsCid // Nhận từ Middleware tự động đẩy file lên IPFS
+            computedIpfsCid
         } = req.body;
 
         if (!batch_id || !roasting_temperature || !roasting_duration || !roast_batch_size || !cupping_score) {
             return res.status(400).json({ success: false, message: "Thiếu thông số vận hành mẻ rang hoặc điểm Cupping cảm quan!" });
         }
 
-        // Đóng gói gói tin Off-chain phục vụ lưu trữ phi tập trung
         const eventPayload = {
             batchId: batch_id,
             roasting_temperature: parseInt(roasting_temperature),
@@ -60,19 +52,16 @@ export const roastBatchIpfs = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ Lỗi tại Backend roastBatchIpfs:", error);
+        console.error("Lỗi tại Backend roastBatchIpfs:", error);
         return res.status(500).json({ success: false, message: "Lỗi tạo cấu trúc payload mẻ rang nhà máy." });
     }
 };
 
-/**
- * [Luồng 1] Bước 2: Đồng bộ các tham số kỹ thuật mẻ rang sâu xuống PostgreSQL
- */
 export const saveRoastToDb = async (req, res) => {
     try {
         const {
             batchId,
-            status, // Nhận lên "ASSESSED" từ Client
+            status,
             roastingTemperature,
             roastingDuration,
             roastBatchSize,
@@ -91,18 +80,14 @@ export const saveRoastToDb = async (req, res) => {
             return res.status(400).json({ success: false, message: "Yêu cầu định danh của Processor thực hiện đóng mẻ." });
         }
 
-        // Kiểm tra trạng thái xác thực khối on-chain
         const txReceipt = await provider.getTransactionReceipt(txHash);
         if (!txReceipt || Number(txReceipt.status) !== 1) {
             return res.status(400).json({ success: false, message: "Giao dịch Blockchain mẻ rang chưa được đào hoặc đã bị Revert thất bại!" });
         }
 
-        console.log(`💾 Đang tiến hành lưu nhật ký mẻ rang và phân hạng lô hàng ${batchId} vào DB...`);
-
         const result = await prisma.$transaction(async (tx) => {
             const targetStatus = status || "ASSESSED";
 
-            // A. Cập nhật trạng thái lõi của lô hàng sang ASSESSED
             const updatedBatch = await tx.cafe_batches.update({
                 where: { id: batchId },
                 data: {
@@ -111,13 +96,11 @@ export const saveRoastToDb = async (req, res) => {
                 }
             });
 
-            // B. Đồng bộ trạng thái chuỗi cung ứng của các Actor
             await tx.actor_engagement.updateMany({
                 where: { batch_id: batchId },
                 data: { batch_status: targetStatus }
             });
 
-            // C. Khởi tạo hoặc cập nhật chứng từ kỹ thuật mẻ rang
             const normalizedIpfsCid = (ipfsCid || "").toString().trim();
             const documentCid = normalizedIpfsCid || `Qm${crypto.randomBytes(24).toString("hex")}`;
 
@@ -139,14 +122,12 @@ export const saveRoastToDb = async (req, res) => {
                 }
             });
 
-            // Phân hạng chất lượng dựa trên điểm Sensory / Cupping Score sau rang
             let assignedGrade = "C";
             const score = parseFloat(cuppingScore || 0);
             if (score >= 85) assignedGrade = "S";
             else if (score >= 80) assignedGrade = "A";
             else if (score >= 75) assignedGrade = "B";
 
-            // D. Ghi đè chi tiết thông số lò rang vào bảng dữ liệu chuyên sâu
             await tx.cafe_batch_details.upsert({
                 where: { batch_id: batchId },
                 update: {
@@ -174,11 +155,10 @@ export const saveRoastToDb = async (req, res) => {
                 }
             });
 
-            // E. Ghi nhận mốc sự kiện hiển thị trên dòng thời gian Traceability
             await tx.batch_events.create({
                 data: {
                     batch_id: batchId,
-                    event_type: "ASSESS", // Trùng khớp với logic phân hạng mẻ rang
+                    event_type: "ASSESS",
                     performed_by: userId,
                     ipfs_cid: ipfsCid || "",
                     event_data: {
@@ -193,7 +173,6 @@ export const saveRoastToDb = async (req, res) => {
                 }
             });
 
-            // F. Tạo vết log Audit hệ thống
             await tx.audit_logs.create({
                 data: {
                     action: "ASSESS",
@@ -214,19 +193,11 @@ export const saveRoastToDb = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ Lỗi đồng bộ DB mẻ rang:", error);
+        console.error("Lỗi đồng bộ DB mẻ rang:", error);
         return res.status(500).json({ success: false, message: "Lỗi đồng bộ hệ thống sau mẻ rang.", error: error.message });
     }
 };
 
-
-// =========================================================================
-// 🤝 LUỒNG 2: CHUYỂN GIAO QUYỀN SỞ HỮU SANG NHÀ XUẤT KHẨU (TRANSFER TO EXPORTER)
-// =========================================================================
-
-/**
- * [Luồng 2] Bước 1: Tiếp nhận thông tin Nhà xuất khẩu, đóng gói IPFS Payload bàn giao thương mại
- */
 export const transferExporterIpfs = async (req, res) => {
     try {
         const { batch_id, exporter_id, document_desc, computedIpfsCid } = req.body;
@@ -258,17 +229,13 @@ export const transferExporterIpfs = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("❌ Lỗi tại Backend transferExporterIpfs:", error);
+        console.error("Lỗi tại Backend transferExporterIpfs:", error);
         return res.status(500).json({ success: false, message: "Lỗi cấu trúc payload hệ thống chuyển giao xuất khẩu." });
     }
 };
 
-/**
- * [Luồng 2] Bước 2: Ký xác thực đổi chủ quyền sở hữu lô hàng sang Nhà xuất khẩu (EXPORTED)
- */
 export const saveTransferExporterToDb = async (req, res) => {
     try {
-        // Đón nhận thêm biến status (hoặc gán mặc định ASSESSED dựa theo log của bạn)
         const { batchId, status, exporterId, ipfsCid, txHash } = req.body;
         const userId = req.user?.id;
 
@@ -276,22 +243,17 @@ export const saveTransferExporterToDb = async (req, res) => {
             return res.status(400).json({ success: false, message: "Thiếu thông tin đồng bộ bàn giao (batchId, exporterId, txHash)." });
         }
 
-        // Xác thực trạng thái giao dịch đổi trạng thái on-chain trên ví của Processor
         const txReceipt = await provider.getTransactionReceipt(txHash);
         if (!txReceipt || Number(txReceipt.status) !== 1) {
             return res.status(400).json({ success: false, message: "Chứng thực Blockchain Revert hoặc giao dịch không tồn tại!" });
         }
 
-        // Đối soát đối tác thương mại nhận hàng trong CSDL
         const exporterUser = await prisma.users.findUnique({ where: { id: exporterId } });
         if (!exporterUser) {
             return res.status(404).json({ success: false, message: "Không tìm thấy Nhà xuất khẩu đối tác mục tiêu trên hệ thống!" });
         }
 
-        console.log(`🤝 Tiến hành đổi chủ quyền sở hữu lô hàng ${batchId} sang Nhà xuất khẩu: ${exporterUser.name}`);
-
         const result = await prisma.$transaction(async (tx) => {
-            // A. Chuyển giao hẳn quyền sở hữu sang Nhà xuất khẩu
             const updatedBatch = await tx.cafe_batches.update({
                 where: { id: batchId },
                 data: {
@@ -300,7 +262,6 @@ export const saveTransferExporterToDb = async (req, res) => {
                 }
             });
 
-            // B. Ghi vết liên kết tiến độ tham gia của Nhà xuất khẩu vào chuỗi cung ứng
             await tx.actor_engagement.updateMany({
                 where: { batch_id: batchId },
                 data: {
@@ -308,9 +269,7 @@ export const saveTransferExporterToDb = async (req, res) => {
                 }
             });
 
-            // C. SỬA LỖI UPSERT: Bổ sung các tham số bị thiếu của bảng documents
             if (ipfsCid) {
-                // Xác định trạng thái lưu kèm tài liệu (Ưu tiên từ frontend, không thì lấy "ASSESSED")
                 const currentStatus = status || "ASSESSED";
 
                 await tx.documents.upsert({
@@ -326,12 +285,11 @@ export const saveTransferExporterToDb = async (req, res) => {
                         description: `Vận đơn thương mại bàn giao tài sản sang Nhà Xuất Khẩu: ${exporterUser.name}`,
                         uploaded_by: userId || updatedBatch.current_owner,
                         type: "DOCUMENT",
-                        batch_status: currentStatus // 👈 KHẮC PHỤC LỖI: Điền giá trị enum bắt buộc vào đây
+                        batch_status: currentStatus
                     }
                 });
             }
 
-            // D. Đẩy dòng mốc sự kiện hành trình Traceability
             await tx.batch_events.create({
                 data: {
                     batch_id: batchId,
@@ -347,14 +305,13 @@ export const saveTransferExporterToDb = async (req, res) => {
                 }
             });
 
-            // E. Nhật ký giám sát bảo mật hệ thống
             await tx.audit_logs.create({
                 data: {
                     action: "TRANSFER",
                     description: `Nhà chế biến ký bàn giao và chuyển quyền sở hữu lô hàng #${batchId} sang Nhà Xuất Khẩu (${exporterUser.name})`,
                     performed_by: userId || updatedBatch.current_owner,
                     batch_id: batchId,
-                    batch_status: status || "ASSESSED" // 👈 KHẮC PHỤC LỖI: Thêm giá trị enum bắt buộc vào đây
+                    batch_status: status || "ASSESSED"
                 }
             });
 
@@ -368,7 +325,7 @@ export const saveTransferExporterToDb = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ Lỗi lưu DB sau bàn giao Nhà xuất khẩu:", error);
+        console.error("Lỗi lưu DB sau bàn giao Nhà xuất khẩu:", error);
         return res.status(500).json({ success: false, message: "Lỗi hệ thống khi thực hiện cấu trúc đồng bộ bàn giao thương mại.", error: error.message });
     }
 };

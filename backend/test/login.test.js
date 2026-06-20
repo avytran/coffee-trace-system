@@ -49,10 +49,10 @@ async function runFullTest() {
     console.log(`   - Display Name: ${loginResult.agent.name}`);
     console.log(`   - System Role : ${loginResult.agent.role}`);
     console.log(`🔑 [Issued Access JWT Token]:\n${loginResult.token}\n`);
-    console.log('👉 Keep this token to attach as a Bearer Token in the Authorization header for secured business APIs.');
+    console.log(' Keep this token to attach as a Bearer Token in the Authorization header for secured business APIs.');
 
   } catch (error) {
-    console.error('❌ Test execution encountered an error:', error.message);
+    console.error('Test execution encountered an error:', error.message);
   }
 }
 

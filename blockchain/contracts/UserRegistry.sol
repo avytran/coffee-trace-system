@@ -2,11 +2,11 @@
 pragma solidity ^0.8.20;
 
 contract UserRegistry {
-    // ── ENUMS ────────────────────────────────────────────────────────────────
+    // ENUMS
     enum Role { ADMIN, FARMER, COOPERATIVE, PROCESSOR, EXPORTER, RECEIVER, ANONYMOUS }
     enum Status { ACTIVE, SUSPENDED }
 
-    // ── STRUCT ───────────────────────────────────────────────────────────────
+    // STRUCT
     struct User {
         address wallet;
         Role role;
@@ -14,16 +14,16 @@ contract UserRegistry {
         uint256 createdAt;
     }
 
-    // ── STORAGE ──────────────────────────────────────────────────────────────
+    // STORAGE
     address public rootAdmin;
     mapping(address => User) private users;
 
-    // ── EVENTS ───────────────────────────────────────────────────────────────
+    // EVENTS
     event UserRegistered(address indexed wallet, Role indexed role, Status status, uint256 createdAt);
     event UserRoleUpdated(address indexed wallet, Role oldRole, Role newRole, address indexed updatedBy);
     event UserStatusUpdated(address indexed wallet, Status oldStatus, Status newStatus, address indexed updatedBy);
 
-    // ── MODIFIERS ────────────────────────────────────────────────────────────
+    // MODIFIERS
     modifier onlyAdmin() {
         require(
             users[msg.sender].role == Role.ADMIN || msg.sender == rootAdmin, 
@@ -32,7 +32,7 @@ contract UserRegistry {
         _;
     }
 
-    // ── CONSTRUCTOR ──────────────────────────────────────────────────────────
+    // CONSTRUCTOR
     constructor() {
         rootAdmin = msg.sender;
         users[msg.sender] = User({
@@ -44,7 +44,7 @@ contract UserRegistry {
         emit UserRegistered(msg.sender, Role.ADMIN, Status.ACTIVE, block.timestamp);
     }
 
-    // ── WRITE FUNCTIONS ──────────────────────────────────────────────────────
+    // WRITE FUNCTIONS
     function registerUser(address _wallet, Role _role) external onlyAdmin {
         require(_wallet != address(0), "Robustrace: Dia chi vi khong hop le");
         require(users[_wallet].wallet == address(0), "Robustrace: Tai khoan da ton tai");
@@ -73,7 +73,7 @@ contract UserRegistry {
         emit UserStatusUpdated(_wallet, oldStatus, _newStatus, msg.sender);
     }
 
-    // ── VIEW FUNCTIONS INTERFACE (Phục vụ cho các Contract khác gọi sang) ─────
+    // VIEW FUNCTIONS INTERFACE
     function getUser(address _wallet) external view returns (User memory) {
         return users[_wallet];
     }

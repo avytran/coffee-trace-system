@@ -10,7 +10,7 @@ contract BatchRegistry {
     enum BatchStatus { INITIAL, HARVESTED, PRE_PROCESSED, REJECTED, PROCESSED, ASSESSED, EXPORTED, COMPLETED }
 
     struct CoffeeBatch {
-        string batchId; // UUID chuyển thành string key
+        string batchId;
         BatchStatus status;
         address currentOwner;
         string traceabilityCode;

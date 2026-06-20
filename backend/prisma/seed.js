@@ -20,7 +20,7 @@ async function main() {
   try {
     if (environment === 'sepolia') {
       if (!wallet) {
-        console.error("❌ Lỗi: Không tìm thấy ví cấu hình trong Server làm ADMIN cho mạng Sepolia!");
+        console.error("Lỗi: Không tìm thấy ví cấu hình trong Server làm ADMIN cho mạng Sepolia!");
         process.exit(1);
       }
       adminWallet = wallet.address.toLowerCase();
@@ -28,17 +28,17 @@ async function main() {
       console.log('Connecting to Local Node to fetch accounts...');
       const accounts = await provider.listAccounts();
       if (accounts.length < 1) {
-        console.error("❌ Node Local không cung cấp tài khoản nào!");
+        console.error("Node Local không cung cấp tài khoản nào!");
         process.exit(1);
       }
       adminWallet = accounts[0].address.toLowerCase();
     }
   } catch (error) {
-    console.error("❌ Thất bại khi kết nối tới cổng Blockchain Node:", error.message);
+    console.error("Thất bại khi kết nối tới cổng Blockchain Node:", error.message);
     process.exit(1);
   }
 
-  console.log(`👉 Tìm thấy địa chỉ ví ADMIN hợp lệ: ${adminWallet}`);
+  console.log(` Tìm thấy địa chỉ ví ADMIN hợp lệ: ${adminWallet}`);
   console.log('Initiating database seeding for ADMIN user...');
 
   const savedAdmin = await prisma.users.upsert({

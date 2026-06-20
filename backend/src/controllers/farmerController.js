@@ -16,13 +16,12 @@ export const createBatch = async (req, res) => {
       altitude,
       cultivation_info,
       document_desc,
-      computedIpfsCid // Nhận từ Middleware tự động đẩy file lên IPFS
+      computedIpfsCid
     } = req.body;
 
     const suggestedBatchId = crypto.randomUUID();
     const finalTraceabilityCode = traceability_code || `CF-${suggestedBatchId.substring(0, 8).toUpperCase()}`;
 
-    // 1. 🌟 ĐÓNG GÓI PAYLOAD OFF-CHAIN
     const eventPayload = {
       batchId: suggestedBatchId,
       traceabilityCode: finalTraceabilityCode,
@@ -61,7 +60,7 @@ export const createBatch = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Lỗi tại Backend createBatch:", error);
+    console.error("Lỗi tại Backend createBatch:", error);
     return res.status(500).json({ success: false, message: "Lỗi tạo payload hệ thống." });
   }
 };
@@ -207,14 +206,11 @@ export const saveBatchToDb = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Lỗi lưu DB sau Blockchain:", error);
+    console.error("Lỗi lưu DB sau Blockchain:", error);
     return res.status(500).json({ success: false, message: "Lỗi hệ thống khi ghi nhận dữ liệu vào DB.", error: error.message });
   }
 };
 
-/**
- * [Luồng 2] Kiểm tra tính hợp lệ của đối tác nhận (HTX) trước khi tiến hành giao dịch On-chain
- */
 export const verifyTransferPartner = async (req, res) => {
   const { batchId, target_cooperative_wallet, wallet_address } = req.body;
 
@@ -222,13 +218,11 @@ export const verifyTransferPartner = async (req, res) => {
     const senderWallet = wallet_address.toLowerCase();
     const receiverWallet = target_cooperative_wallet.toLowerCase();
 
-    // 1. Kiểm tra lô hàng hiện tại
     const batch = await prisma.cafe_batches.findUnique({ where: { id: batchId } });
     if (!batch || batch.current_owner.toLowerCase() !== senderWallet) {
       return res.status(403).json({ message: "Thao tác không hợp lệ. Bạn không sở hữu lô hàng này." });
     }
 
-    // 2. Xác thực đối tác nhận (HTX) xem đã được Admin đăng ký phân quyền trên hệ thống chưa
     const cooperativeAgent = await prisma.users.findUnique({
       where: { wallet_address: receiverWallet }
     });
@@ -261,14 +255,11 @@ export const harvestBatch = async (req, res) => {
   const actorWallet = (req.user?.wallet_address || req.body.wallet_address || "").toLowerCase();
   const jwtUserId = req.user?.id;
 
-  // Kiểm tra dữ liệu đầu vào cơ bản
   if (!batch_id || !harvest_time || !harvest_method || !tx_hash) {
     return res.status(400).json({ success: false, message: "Yêu cầu đầy đủ thông tin thu hoạch và TxHash!" });
   }
 
   try {
-    // 1. CHỨNG THỰC ON-CHAIN (Bảo mật nâng cao)
-    // Kết nối đến mạng Blockchain Node (Hardhat/Ganache/Anvil) để quét biên lai
     const txReceipt = await provider.getTransactionReceipt(tx_hash);
 
     if (!txReceipt) {
@@ -279,7 +270,6 @@ export const harvestBatch = async (req, res) => {
       return res.status(400).json({ success: false, message: "Giao dịch Blockchain đã bị Revert (Thất bại) on-chain!" });
     }
 
-    // 2. KIỂM TRA ĐIỀU KIỆN ĐỐI SOÁT TRONG DATABASE
     const existingBatch = await prisma.cafe_batches.findUnique({ where: { id: batch_id } });
     if (!existingBatch) {
       return res.status(404).json({ success: false, message: "Không tìm thấy lô hàng tương ứng trong DB." });
@@ -288,7 +278,6 @@ export const harvestBatch = async (req, res) => {
       return res.status(400).json({ success: false, message: "Lô hàng này đã vượt qua giai đoạn khởi tạo." });
     }
 
-    // 2.5. Xác thực người thực hiện thao tác và đảm bảo UUID tồn tại trong users
     let actorUser = null;
     if (jwtUserId) {
       actorUser = await prisma.users.findUnique({ where: { id: jwtUserId } });
@@ -310,9 +299,7 @@ export const harvestBatch = async (req, res) => {
       return res.status(400).json({ success: false, message: "Không thể xác định người dùng thực hiện hành động thu hoạch." });
     }
 
-    // 3. ĐỒNG BỘ ATOMIC TRANSACTION VÀO POSTGRESQL
     const dbResult = await prisma.$transaction(async (tx) => {
-      // A. Cập nhật trạng thái lõi
       const updatedBatch = await tx.cafe_batches.update({
         where: { id: batch_id },
         data: {
@@ -320,13 +307,11 @@ export const harvestBatch = async (req, res) => {
         }
       });
 
-      // B. Cập nhật trạng thái engagement để giữ đồng bộ chuỗi cung ứng
       await tx.actor_engagement.updateMany({
         where: { batch_id: batch_id },
         data: { batch_status: "HARVESTED" }
       });
 
-      // C. Đẩy bản ghi vào bảng chi tiết kỹ thuật
       const batchDetail = await tx.cafe_batch_details.create({
         data: {
           batch_id: batch_id,
@@ -345,7 +330,6 @@ export const harvestBatch = async (req, res) => {
         }
       });
 
-      // D. Khởi tạo dấu mốc trên dòng thời gian Traceability hiển thị UI công khai
       const batchEvent = await tx.batch_events.create({
         data: {
           batch_id: batch_id,
@@ -360,7 +344,6 @@ export const harvestBatch = async (req, res) => {
         }
       });
 
-      // E. Lưu nhật ký Audit bảo mật hệ thống
       await tx.audit_logs.create({
         data: {
           action: "HARVEST",
@@ -385,7 +368,7 @@ export const harvestBatch = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Lỗi xử lý đồng bộ dữ liệu sau thu hoạch:", error);
+    console.error("Lỗi xử lý đồng bộ dữ liệu sau thu hoạch:", error);
     return res.status(500).json({
       success: false,
       message: "Lỗi xử lý nội bộ cơ sở dữ liệu hệ thống.",
@@ -394,17 +377,11 @@ export const harvestBatch = async (req, res) => {
   }
 };
 
-/**
- * API: Xác nhận chuyển giao lô hàng sang Hợp Tác Xã (COOPERATIVE)
- * Luồng xử lý: Xác thực TxHash -> Kiểm tra Trạng thái lô -> Đồng bộ Người nhận & Người chuyển -> Cập nhật Database liên tầng
- */
 export const transferToCoop = async (req, res) => {
   const { batch_id, cooperative_name, tx_hash, coop_wallet_address } = req.body;
   const actorWallet = (req.user?.wallet_address || req.body.wallet_address || "").toLowerCase();
   const jwtUserId = req.user?.id;
 
-  // 1. Kiểm tra dữ liệu đầu vào cơ bản
-  // Cần coop_wallet_address (hoặc lấy từ hệ thống) để liên kết chính xác chủ sở hữu mới
   if (!batch_id || !cooperative_name || !tx_hash || !coop_wallet_address) {
     return res.status(400).json({
       success: false,
@@ -415,9 +392,6 @@ export const transferToCoop = async (req, res) => {
   const targetCoopWallet = coop_wallet_address.toLowerCase();
 
   try {
-    // =========================================================================
-    // BƯỚC 1: CHỨNG THỰC ON-CHAIN GIAO DỊCH CHUYỂN NHƯỢNG TÀI SẢN
-    // =========================================================================
     const txReceipt = await provider.getTransactionReceipt(tx_hash);
 
     if (!txReceipt) {
@@ -428,15 +402,11 @@ export const transferToCoop = async (req, res) => {
       return res.status(400).json({ success: false, message: "Giao dịch Blockchain đã bị Revert (Thất bại) on-chain!" });
     }
 
-    // =========================================================================
-    // BƯỚC 2: KIỂM TRA ĐIỀU KIỆN ĐỐI SOÁT LÔ HÀNG TRONG DATABASE
-    // =========================================================================
     const existingBatch = await prisma.cafe_batches.findUnique({ where: { id: batch_id } });
     if (!existingBatch) {
       return res.status(404).json({ success: false, message: "Không tìm thấy lô hàng tương ứng trong DB." });
     }
 
-    // Đảm bảo lô hàng đã thu hoạch thì mới được phép chuyển giao sang HTX sơ chế
     if (existingBatch.status !== "HARVESTED") {
       return res.status(400).json({
         success: false,
@@ -444,10 +414,6 @@ export const transferToCoop = async (req, res) => {
       });
     }
 
-    // =========================================================================
-    // BƯỚC 2.5: XÁC THỰC NGƯỜI GỬI (FARMER) & NGƯỜI NHẬN (COOPERATIVE) TRONG DB
-    // =========================================================================
-    // A. Xác thực Farmer thực hiện hành động
     let actorUser = null;
     if (jwtUserId) {
       actorUser = await prisma.users.findUnique({ where: { id: jwtUserId } });
@@ -469,7 +435,6 @@ export const transferToCoop = async (req, res) => {
       return res.status(400).json({ success: false, message: "Không thể xác định người dùng thực hiện chuyển giao." });
     }
 
-    // B. Xác thực hoặc Tự động khởi tạo tài khoản Hợp Tác Xã nhận bàn giao
     let coopUser = await prisma.users.findUnique({ where: { wallet_address: targetCoopWallet } });
     if (!coopUser) {
       coopUser = await prisma.users.create({
@@ -482,23 +447,17 @@ export const transferToCoop = async (req, res) => {
       });
     }
 
-    // =========================================================================
-    // BƯỚC 3: ĐỒNG BỘ ATOMIC TRANSACTION VÀO POSTGRESQL
-    // =========================================================================
     const dbResult = await prisma.$transaction(async (tx) => {
 
-      // A. Cập nhật chủ sở hữu mới (owner_id) cho lô hàng chính. 
-      // Trạng thái giữ nguyên hoặc chuyển tiếp tùy thuộc vào thiết kế (ở đây giữ nguyên luồng của bạn là đổi chủ)
       const updatedBatch = await tx.cafe_batches.update({
         where: { id: batch_id },
         data: {
           status: "PRE_PROCESSED",
-          current_owner: coopUser.id, // 🌟 Chuyển giao quyền sở hữu tài sản off-chain
+          current_owner: coopUser.id,
           updated_at: new Date()
         }
       });
 
-      // B. Cập nhật trạng thái engagement của các bên tham gia trong chuỗi
       await tx.actor_engagement.updateMany({
         where: { batch_id: batch_id },
         data: {
@@ -507,11 +466,10 @@ export const transferToCoop = async (req, res) => {
         }
       });
 
-      // C. Khởi tạo dấu mốc chuyển giao trên dòng thời gian Traceability Timeline hiển thị ngoài UI
       const batchEvent = await tx.batch_events.create({
         data: {
           batch_id: batch_id,
-          event_type: "TRANSFER", // 🤝 Sự kiện chuyển giao
+          event_type: "TRANSFER",
           performed_by: actorUser.id,
           ipfs_cid: "",
           event_data: {
@@ -525,7 +483,6 @@ export const transferToCoop = async (req, res) => {
         }
       });
 
-      // D. Lưu nhật ký Audit bảo mật hệ thống phục vụ thanh tra nội bộ
       await tx.audit_logs.create({
         data: {
           action: "TRANSFER",
@@ -539,7 +496,6 @@ export const transferToCoop = async (req, res) => {
       return { updatedBatch, batchEvent };
     });
 
-    // 4. Trả kết quả thành công phản hồi về client
     return res.status(200).json({
       success: true,
       message: "Đồng bộ hợp đồng bàn giao sang Hợp Tác Xã thành công!",
@@ -552,7 +508,7 @@ export const transferToCoop = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Lỗi xử lý đồng bộ dữ liệu chuyển giao HTX:", error);
+    console.error("Lỗi xử lý đồng bộ dữ liệu chuyển giao HTX:", error);
     return res.status(500).json({
       success: false,
       message: "Lỗi xử lý nội bộ cơ sở dữ liệu hệ thống khi bàn giao.",

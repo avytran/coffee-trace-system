@@ -1,12 +1,5 @@
 import { prisma } from "../utils/prisma.js";
 
-/**
- * =========================================================================
- * 🚢 LUỒNG 1: EXPORT - KHAI BÁO THÔNG TIN VẬN CHUYỂN QUỐC TẾ
- * =========================================================================
- * Bước 1: Tiếp nhận thông tin vận tải và tệp đính kèm đẩy lên IPFS
- * Route: POST /api/exporter/batches/shipment-ipfs
- */
 export const shipmentBatchIpfs = async (req, res) => {
     try {
         const { batch_id, carrier, departure_date, destination, container_number, document_desc, computedIpfsCid } = req.body;
@@ -29,15 +22,11 @@ export const shipmentBatchIpfs = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("❌ Lỗi tại shipmentBatchIpfs:", error);
+        console.error("Lỗi tại shipmentBatchIpfs:", error);
         return res.status(500).json({ success: false, message: "Lỗi hệ thống khi xử lý IPFS vận tải" });
     }
 };
 
-/**
- * Bước 2: Đồng bộ dữ liệu vận chuyển vào bảng `shipping_info` độc lập và ghi log event
- * Route: POST /api/exporter/batches/save-shipment-db
- */
 export const saveShipmentToDb = async (req, res) => {
     try {
         const batchId = req.body.batchId || req.body.batch_id;
@@ -57,7 +46,6 @@ export const saveShipmentToDb = async (req, res) => {
         }
 
         const result = await prisma.$transaction(async (tx) => {
-            // 1. Cập nhật trạng thái lô hàng sang EXPORTED
             const updatedBatch = await tx.cafe_batches.update({
                 where: { id: batchId },
                 data: {
@@ -65,7 +53,6 @@ export const saveShipmentToDb = async (req, res) => {
                 }
             });
 
-            // 2. Cập nhật trạng thái chặng tham gia của Exporter trong bảng actor_engagement
             await tx.actor_engagement.updateMany({
                 where: { 
                     batch_id: batchId,
@@ -76,7 +63,6 @@ export const saveShipmentToDb = async (req, res) => {
                 }
             });
 
-            // 3. Tạo mới bản ghi vận chuyển trong bảng shipping_info tách biệt
             const shippingLog = await tx.shipping_info.create({
                 data: {
                     batch_id: batchId,
@@ -88,7 +74,6 @@ export const saveShipmentToDb = async (req, res) => {
                 }
             });
 
-            // 4. Ghi nhận nhật ký sự kiện chuỗi cung ứng vào bảng `batch_events`
             const eventLog = await tx.batch_events.create({
                 data: {
                     batch_id: batchId,
@@ -114,22 +99,13 @@ export const saveShipmentToDb = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ Lỗi tại saveShipmentToDb:", error);
+        console.error("Lỗi tại saveShipmentToDb:", error);
         return res.status(500).json({ success: false, message: "Thất bại khi lưu thông tin vận chuyển vào DB" });
     }
 };
 
-
-/**
- * =========================================================================
- * 🤝 LUỒNG 2: TRANSFER - CHUYỂN GIAO QUYỀN SỞ HỮU SANG NHÀ NHẬP KHẨU
- * =========================================================================
- * Bước 1: Tiếp nhận biên bản chuyển đổi chủ quyền sở hữu thương mại đẩy lên IPFS
- * Route: POST /api/exporter/batches/transfer-ipfs
- */
 export const transferImporterIpfs = async (req, res) => {
     try {
-        // Đồng nhất cách lấy computedIpfsCid từ body giống như Luồng 1
         const { batch_id, exporter_id, document_desc, computedIpfsCid } = req.body;
 
         if (!batch_id) {
@@ -141,21 +117,17 @@ export const transferImporterIpfs = async (req, res) => {
             message: "Biên bản chuyển giao quyền sở hữu đã sẵn sàng trên IPFS",
             data: {
                 batch_id,
-                exporter_id, // Đối tác nhận
+                exporter_id,
                 document_desc,
                 ipfsCid: computedIpfsCid || req.computedIpfsCid || ""
             }
         });
     } catch (error) {
-        console.error("❌ Lỗi tại transferImporterIpfs:", error);
+        console.error("Lỗi tại transferImporterIpfs:", error);
         return res.status(500).json({ success: false, message: "Lỗi hệ thống khi băm vận đơn chuyển giao" });
     }
 };
 
-/**
- * Bước 2: Đồng bộ giao dịch đổi chủ, cập nhật owner_id, tạo mới/nối tiếp vào actor_engagement
- * Route: POST /api/exporter/batches/save-transfer-exporter-db
- */
 export const saveTransferImporterToDb = async (req, res) => {
     try {
         const { batchId, status, exporterId, ipfsCid, txHash } = req.body; 
@@ -166,7 +138,6 @@ export const saveTransferImporterToDb = async (req, res) => {
 
         const result = await prisma.$transaction(async (tx) => {
 
-            // 1. Xác thực xem Nhà nhập khẩu đích (đối tác nhận bàn giao) có tồn tại hay không
             const targetReceiver = await tx.users.findUnique({
                 where: { id: exporterId }
             });
@@ -175,7 +146,6 @@ export const saveTransferImporterToDb = async (req, res) => {
                 throw new Error("Không tìm thấy đối tác tiếp nhận (Receiver/Importer) trong hệ thống!");
             }
 
-            // 2. Cập nhật trạng thái và đổi đứt chủ sở hữu tài sản (current_owner) tại bảng gốc cafe_batches
             const updatedBatch = await tx.cafe_batches.update({
                 where: { id: batchId },
                 data: {
@@ -184,7 +154,6 @@ export const saveTransferImporterToDb = async (req, res) => {
                 }
             });
 
-            // 3. Cập nhật chặng cũ của Exporter bằng việc gán `receiver_id` để kết thúc vòng đời chặng
             await tx.actor_engagement.updateMany({
                 where: { 
                     batch_id: batchId,
@@ -196,7 +165,6 @@ export const saveTransferImporterToDb = async (req, res) => {
                 }
             });
 
-            // 4. Lấy thông tin engagement hiện tại để trả về phản hồi đồng bộ (thay thế cho biến lỗi newEngagement cũ)
             const currentEngagement = await tx.actor_engagement.findFirst({
                 where: {
                     batch_id: batchId,
@@ -204,7 +172,6 @@ export const saveTransferImporterToDb = async (req, res) => {
                 }
             });
 
-            // 5. Ghi nhận lịch sử sự kiện bàn giao tài sản vào bảng `batch_events`
             const eventLog = await tx.batch_events.create({
                 data: {
                     batch_id: batchId,
@@ -230,7 +197,7 @@ export const saveTransferImporterToDb = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ Lỗi tại saveTransferImporterToDb:", error);
+        console.error("Lỗi tại saveTransferImporterToDb:", error);
         return res.status(500).json({ success: false, message: error.message || "Lỗi đồng bộ DB luồng kết chuyển chủ quyền" });
     }
 };

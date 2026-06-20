@@ -8,9 +8,7 @@ generator client {
   engineType      = "library"
 }
 
-// ==========================================
 // ENUMS
-// ==========================================
 
 enum document_type_enum {
   DOCUMENT
@@ -64,9 +62,7 @@ enum action_enum {
   TRANSFER
 }
 
-// ==========================================
 // MODELS
-// ==========================================
 
 model users {
   id             String           @id @default(uuid()) @db.Uuid

@@ -8,8 +8,8 @@ contract BatchEventRegistry {
         string batchId;
         ActionType action;
         address actor;
-        string ipfsCid;     // CID chứa JSON chi tiết của payload
-        bytes32 eventHash;  // Băm toàn bộ dữ liệu tại thời điểm phát sinh để đối soát chống giả mạo độc lập
+        string ipfsCid;
+        bytes32 eventHash;
         uint256 timestamp;
     }
 
@@ -28,7 +28,6 @@ contract BatchEventRegistry {
         string memory _ipfsCid,
         bytes32 _eventHash
     ) public {
-        // Thực hiện ghi nhận nhật ký hành trình, có thể mở rộng kiểm tra phân quyền thông qua batchRegistryAddress
         batchEvents[_batchId].push(BatchEvent({
             batchId: _batchId,
             action: _action,
